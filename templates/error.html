@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% block title %}Something needs attention{% endblock %}
+{% block content %}<section class="card narrow"><p class="eyebrow">{{ error.code }}</p><h1>Let’s get back on track.</h1><p>{{ error.description }}</p><p class="hint">If a form needs correcting, use your browser’s Back button to return to it.</p><a class="button" href="{{ url_for('dashboard') }}">Return to workspace →</a></section>{% endblock %}

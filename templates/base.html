@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pairagraph{% endblock %} · Shared stories, individual growth</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
+{% if g.teacher %}
+<aside class="sidebar">
+  <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">p<span>p</span></span> pairagraph<span class="brand-dot">.</span></a>
+  <p class="nav-caption">TEACHER WORKSPACE</p>
+  <nav aria-label="Main navigation">
+    {% for endpoint,label,icon in [('dashboard','Overview','◫'),('learners','Learners','♧'),('pairs','Reading pairs','↔'),('library','Material library','▤'),('new_activity','Build activity','＋'),('progress','Learner progress','↗')] %}
+    <a href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span>{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <div class="sidebar-bottom"><div class="privacy-note"><span class="status-dot"></span> Teacher-led, always<p>Individual goals.<br>One shared reading experience.</p></div>
+    <div class="teacher"><span class="avatar">DT</span><div><strong>{{ g.teacher.name }}</strong><small>Institute {{ g.teacher.institute_id }}</small></div></div>
+    <form action="{{ url_for('logout') }}" method="post">{{ csrf() }}<button class="text-button" type="submit">Sign out →</button></form>
+  </div>
+</aside>
+{% endif %}
+<div class="workspace {% if not g.teacher %}signed-out{% endif %}">
+  {% if g.teacher %}<header class="topbar"><span>Learning together <span class="muted">/ Teacher workspace</span></span><span class="pill">P0 · Local MVP</span></header>{% endif %}
+  <main id="main">
+    {% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="notice {{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  {% if g.teacher %}<footer>Pseudonyms only. Teacher-confirmed observations. No microphone or audio storage.</footer>{% endif %}
+</div>
+</body>
+</html>

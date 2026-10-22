@@ -163,7 +163,11 @@ document.querySelectorAll('[data-recorder]').forEach((panel) => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Transcription failed. Try again or enter a manual transcript.');
       clearRecording();
-      window.location.assign(result.redirect);
+      const destination = new URL(result.redirect, window.location.href);
+      if (panel.dataset.resultsView === 'student') destination.searchParams.set('view', 'student');
+      if (panel.dataset.inlineResults === 'true') {
+        panel.dispatchEvent(new CustomEvent('reading-saved', {detail: {url: destination.href}, bubbles: true}));
+      } else window.location.assign(destination.href);
     } catch (error) {
       if (error.name !== 'AbortError') status.textContent = error.message.startsWith('Unexpected') ? 'The server could not process this recording. Try a shorter reading or enter a manual transcript.' : error.message;
     } finally {

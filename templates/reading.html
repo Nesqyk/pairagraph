@@ -1,27 +1,50 @@
-{% extends 'base.html' %}{% from '_activity_parts.html' import source %}
-{% block title %}Reading & transcript{% endblock %}
+{% extends 'student_base.html' %}
+{% block title %}Start reading{% endblock %}
 {% block content %}
-<a class="back" href="{{ url_for('relay',ident=activity.id) }}">← Continue Story Relay</a>
-<div class="page-heading"><div><p class="eyebrow">OPTIONAL READING REVIEW</p><h1>Listen, then review</h1><p class="muted">Read the exact passage aloud for comparison. Retelling is not a word-for-word reading task.</p></div><span class="pill">Recording off by default</span></div>
-<div class="card"><div class="passage">{{ activity.source.text }}</div>{{ source(activity) }}</div>
-<section class="card stack" data-recorder data-url="{{ url_for('transcribe',ident=activity.id) }}">
-<h2>Record a reading</h2>{{ csrf() }}
-<label>Who is reading?<select data-reading-role><option value="mentor">Mentor · {{ activity.pair.mentor }}</option><option value="buddy">Buddy · {{ activity.pair.buddy }}</option></select></label>
-<label class="check"><input type="checkbox" data-record-authorize><span>I have the required authorization to record this learner for this activity.</span></label>
-<p class="hint">Audio stays in this browser’s memory until you delete it or leave this page. Recording stops after 60 seconds or 5 MB. No automatic upload.</p>
-<div class="actions"><button type="button" data-record-start>Start recording</button><button type="button" data-record-stop disabled>Stop recording</button><button type="button" class="secondary" data-record-delete disabled>Delete recording</button></div>
-<audio controls hidden data-record-playback aria-label="Recorded reading playback"></audio>
-<p role="status" aria-live="polite" data-record-status>Microphone is off.</p>
-{% if provider_ready %}
-<label class="check"><input type="checkbox" data-transcribe-consent><span>I authorize sending this recording to the configured transcription service and saving its text as an unconfirmed transcript draft. The service’s retention rules apply to audio sent there.</span></label>
-<button type="button" data-transcribe disabled>Send for transcription</button>
-{% else %}<p class="notice">Transcription is not configured. Playback and deletion still work; enter a manual transcript below. No recording is sent.</p>{% endif %}
-<p class="hint">Pairagraph keeps no audio on its server. Transcripts can be corrected or deleted before the session is confirmed.</p>
+<div class="reader-onepage" data-reading-flow>
+<nav class="reader-section-nav" aria-label="Reading sections"><a href="#home" aria-current="location">Home</a><a href="#reading">Reading</a><a href="#analysis">Analysis</a><a href="#next-story">Next story</a><a href="#progress">Progress</a></nav>
+{% for item in transcripts %}{% if request.args.get('saved') == item.id|string %}<p class="reader-toast" role="status">✓ Draft saved</p>{% endif %}{% endfor %}
+{% if activity.source.text %}
+<section id="home" class="reader-intro reader-section" aria-label="Home" data-home><span class="reader-kicker">A LITTLE PRACTICE, EVERY DAY</span><h1>Read. Discover. Grow.</h1><p>Take your time. Read it your way.</p><a class="button" href="#reading" data-begin>Start reading <span aria-hidden="true">↓</span></a></section>
+<section id="reading" class="reader-section" aria-labelledby="reading-heading"><div class="reader-section-heading"><span class="reader-section-number">01</span><h2 id="reading-heading" tabindex="-1">Reading</h2></div><div class="reader-reading-grid"><section class="reader-sheet" data-story>
+<div class="reader-story-heading"><span class="reader-chip">{{ activity.source.title }} · Page {{ activity.source.page_number }}</span><span class="reader-chip" data-role-chip>Mentor</span></div>
+<h2 class="reader-only">Your story</h2><div class="reader-passage">{{ activity.source.text }}</div>
 </section>
-<section class="card"><h2>Enter a transcript manually</h2><form method="post" class="stack">{{ csrf() }}
+<section class="reader-panel" data-recorder data-url="{{ url_for('transcribe',ident=activity.id) }}" data-results-view="student" data-inline-results="true">
+{{ csrf() }}
+<div class="reader-controls-head"><h2 tabindex="-1" data-record-heading>Your turn</h2><label class="reader-role">Reader<select data-reading-role><option value="mentor">Mentor · {{ activity.pair.mentor }}</option><option value="buddy">Buddy · {{ activity.pair.buddy }}</option></select></label></div>
+<div data-before-record><p class="reader-muted">Allow your microphone when you're ready.</p><label class="reader-check"><input type="checkbox" data-record-authorize><span>I have permission to record this learner.</span></label></div>
+<div class="reader-record-area"><div class="reader-mic-wrap"><button type="button" class="reader-mic" data-record-start aria-label="Record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="2" width="8" height="13" rx="4"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg></button><button type="button" class="reader-mic" data-record-stop disabled aria-label="Stop"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button></div><span class="reader-timer" data-record-timer aria-label="Recording time">0:00 / 1:00</span><p class="reader-muted">Audio isn't saved</p></div>
+<audio controls hidden data-record-playback aria-label="Recorded reading playback"></audio>
+<div class="reader-playback"><button type="button" class="secondary" data-record-delete disabled>Delete</button></div>
+<p role="status" aria-live="polite" data-record-status>Microphone is off.</p>
+{% if provider_ready %}<label class="reader-check"><input type="checkbox" data-transcribe-consent aria-describedby="send-privacy"><span>I agree to send audio and save a transcript draft.</span></label><button type="button" data-transcribe disabled>Submit</button><p id="send-privacy" class="reader-muted">The voice service's audio retention rules apply.</p>
+{% else %}<button type="button" disabled aria-describedby="voice-unavailable">Submit</button><p id="voice-unavailable" class="reader-muted">Transcription is not configured. Use a manual transcript.</p>{% endif %}
+<details class="reader-privacy"><summary>Audio privacy</summary><p>Audio stays in browser memory until you delete it or leave. Recording stops after 60 seconds or 5 MB. Nothing is uploaded automatically.</p></details>
+</section>
+<details class="reader-panel reader-manual" data-manual><summary>Type instead</summary><form method="post" action="{{ url_for('reading',ident=activity.id) }}" class="stack" data-manual-form>{{ csrf() }}
 <label>Reader<select name="role"><option value="mentor">Mentor · {{ activity.pair.mentor }}</option><option value="buddy">Buddy · {{ activity.pair.buddy }}</option></select></label>
-<label>What was actually read?<textarea name="transcript" required maxlength="6000" rows="6" placeholder="Enter only the words you heard. This is a manual transcript, not AI transcription."></textarea></label>
-<label class="check"><input type="checkbox" name="confirm" value="yes" required><span>I have authorization to save this transcript as a draft for teacher review.</span></label>
-<button>Create transcript draft →</button></form></section>
-<section class="card"><h2>Transcript reviews</h2><div class="stack">{% for transcript in transcripts %}<a href="{{ url_for('review_transcript',ident=transcript.id) }}">{{ activity.pair[transcript.role] }} · {{ transcript.origin|capitalize }} transcript · {{ transcript.status|capitalize }} →</a>{% else %}<p class="muted">No transcript drafts yet. Transcription and recording are optional; you can complete the relay and assess manually.</p>{% endfor %}</div></section>
+<label>Words you read<textarea name="transcript" required maxlength="6000" rows="6" placeholder="Type the words you actually read."></textarea></label>
+<label class="reader-check"><input type="checkbox" name="confirm" value="yes" required><span>I have permission to save this draft for teacher review.</span></label><button>Submit</button><p role="status" data-manual-status></p></form></details>
+</div></section>
+{% else %}<p class="reader-empty">No passage available yet.</p>{% endif %}
+<section id="analysis" class="reader-section" aria-labelledby="analysis-heading">
+<div class="reader-section-heading"><span class="reader-section-number">02</span><h2 id="analysis-heading" tabindex="-1">Analysis</h2></div>
+<div class="reader-loading" hidden data-analyzing role="status" aria-live="polite"><span class="reader-spinner" aria-hidden="true"></span><p>Finding practice ideas…</p></div>
+<p role="status" data-analysis-status></p>
+<div data-analysis-content><div class="reader-comparison"><section class="reader-sheet"><h3>Original</h3><div class="reader-passage">{{ activity.source.text }}</div></section><section class="reader-sheet"><h3>Your reading</h3><p class="reader-muted">Submit your reading to see the comparison.</p></section></div></div>
+</section>
+<section id="next-story" class="reader-section" aria-labelledby="next-heading" data-next-url="{{ url_for('recommendations',ident=activity.pair.id,view='student') }}">
+<div class="reader-section-heading"><span class="reader-section-number">03</span><h2 id="next-heading" tabindex="-1">Next story</h2></div>
+<p class="reader-muted">Explore an approved story for your next read.</p>
+<div data-next-content><p class="reader-empty">Your next story is on its way.</p></div><button type="button" class="secondary" data-next-retry hidden>Retry</button>
+<noscript><a href="{{ url_for('recommendations',ident=activity.pair.id,view='student') }}">View stories</a></noscript>
+</section>
+<section id="progress" class="reader-section" aria-labelledby="progress-heading">
+<div class="reader-section-heading"><span class="reader-section-number">04</span><h2 id="progress-heading" tabindex="-1">Progress</h2></div>
+<div class="reader-progress-grid"><section class="reader-sheet"><h3>Reading drafts</h3><p class="reader-muted">Saved readings from this activity.</p><div class="reader-history" data-reading-history>{% for item in transcripts %}<a href="{{ url_for('review_transcript',ident=item.id,view='student') }}" data-view-transcript><span>{{ activity.pair[item.role] }} &middot; {{ item.origin|capitalize }}</span><small>{{ item.status|capitalize }} &middot; {{ item.created_at }}</small></a>{% else %}<p class="reader-muted" data-empty-history>Your first reading starts here.</p>{% endfor %}</div></section><section class="reader-sheet"><h3>Recurring words</h3><p class="reader-muted">Recurring-word tracking is coming in a later demo.</p></section></div>
+</section>
+
+</div>
 {% endblock %}
+{% block teacher_tools %}<details><summary>Teacher tools</summary><a href="{{ url_for('relay',ident=activity.id) }}">Continue Story Relay</a><div class="reader-review-links">{% for item in transcripts %}<a href="{{ url_for('review_transcript',ident=item.id) }}">{{ activity.pair[item.role] }} · {{ item.origin|capitalize }} · {{ item.status|capitalize }}</a>{% endfor %}</div></details>{% endblock %}

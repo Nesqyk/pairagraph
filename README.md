@@ -1,5 +1,7 @@
 # Pairagraph
 
+business plan: https://github.com/Nesqyk/pairagraph/blob/main/Pairagraph_Business_Plan.pdf
+
 Pairagraph is a local reading-practice app built with Flask and SQLite. The student experience uses a simple sequence: start a story, read aloud, review a few practice words, and choose another story.
 
 ## Student experience

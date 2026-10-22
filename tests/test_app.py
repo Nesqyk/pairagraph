@@ -155,7 +155,7 @@ class PairagraphTest(unittest.TestCase):
         self.assertEqual(self.client.get(f'/activities/{ident}/evaluate').status_code, 409)
 
     def test_non_ascii_csrf_is_rejected_without_server_error(self):
-        self.login()
+        self.open_workspace()
         response = self.client.post('/learners', data={
             'csrf': '\u2603', 'alias': 'Willow', 'role': 'mentor', 'goal': GOALS['mentor'][0],
         })
@@ -264,7 +264,7 @@ class PairagraphTest(unittest.TestCase):
         self.assertEqual(len(buddy_tasks), 3)
 
     def test_non_reading_pdf_pages_are_not_retrieved(self):
-        self.login()
+        self.open_workspace()
         writer = PdfWriter()
         from pypdf import PdfReader
         for text in ['12345 ---', 'A remarkable sunflower grew in the garden.']:

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}{% from '_activity_parts.html' import source %}
+{% block title %}Transcript review{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('reading',ident=activity.id) if activity.status != 'completed' else url_for('activity',ident=activity.id) }}">← Reading activity</a>
+<div class="page-heading"><div><p class="eyebrow">TEACHER REVIEW · {{ transcript.status|upper }}</p><h1>{{ activity.pair[transcript.role] }}’s reading</h1><p class="muted">{{ 'Provider-generated' if transcript.origin == 'provider' else 'Manually entered' }} transcript{% if transcript.provider_model %} · {{ transcript.provider_model }}{% endif %}</p></div></div>
+<p class="notice">Comparison flags are unconfirmed suggestions from text alignment. Transcription mistakes, pauses, and retelling can look like reading errors. They are not diagnoses or grades.</p>
+<div class="task-grid"><section class="card"><h2>Approved passage</h2><div class="passage">{{ activity.source.text }}</div>{{ source(activity) }}</section>
+<section class="card"><h2>Editable transcript</h2>{% if activity.status != 'completed' %}<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="revision" value="{{ transcript.revision }}"><label>Words heard<textarea name="transcript" maxlength="6000" rows="12" required>{{ transcript.text }}</textarea></label><p class="hint">Saving edits creates a fresh comparison and resets all review decisions.</p><button name="action" value="edit">Save transcript & compare</button></form>{% else %}<p class="evidence">{{ transcript.text }}</p>{% endif %}
+{% if transcript.origin == 'provider' %}<details><summary>Original provider transcript · unconfirmed</summary><p class="evidence">{{ transcript.original_text }}</p></details>{% endif %}</section></div>
+<section class="card"><h2>Possible differences</h2><p class="hint">Word positions refer to the approved passage. Accept a suggestion only after listening or observing, and write your own evidence note.</p>
+<form method="post" class="stack">{{ csrf() }}<input type="hidden" name="revision" value="{{ transcript.revision }}">
+{% for flag in flags %}<fieldset class="reading-flag"><legend>Possible {{ flag.kind }} · words {{ flag.word_start }}–{{ flag.word_end }}</legend>
+<p><strong>Passage:</strong> {{ flag.expected or '(no word)' }}<br><strong>Transcript:</strong> {{ flag.heard or '(not present)' }}</p>
+{% if activity.status != 'completed' %}<div class="actions"><label class="check"><input type="radio" name="decision_{{ flag.id }}" value="accepted" required {% if flag.decision == 'accepted' %}checked{% endif %}>Accept observation</label><label class="check"><input type="radio" name="decision_{{ flag.id }}" value="rejected" required {% if flag.decision == 'rejected' %}checked{% endif %}>Reject suggestion</label></div><label>Your observation <small>Required when accepting; maximum 500 characters</small><textarea name="note_{{ flag.id }}" maxlength="500" rows="2">{{ flag.teacher_note }}</textarea></label>
+{% else %}<p>{{ flag.decision|capitalize }}{% if flag.teacher_note %}: {{ flag.teacher_note }}{% endif %}</p>{% endif %}</fieldset>
+{% else %}<p class="muted">No word-level differences found. This does not establish correct pronunciation or demonstrate a learning goal.</p>{% endfor %}
+{% if activity.status != 'completed' %}<label class="check"><input type="checkbox" name="confirm" value="yes" required><span>I checked this transcript and accepted or rejected every suggestion using my own observations.</span></label><p class="hint">Confirmed notes remain separate from session evidence until you explicitly select them in teacher evaluation.</p><button name="action" value="confirm">Confirm transcript review</button>{% endif %}
+</form></section>
+{% if activity.status != 'completed' %}<form method="post" action="{{ url_for('delete_transcript',ident=transcript.id) }}" class="card stack">{{ csrf() }}<label class="check"><input type="checkbox" name="confirm" value="yes" required><span>Delete this transcript and all its comparison suggestions.</span></label><button class="secondary">Delete transcript</button></form>{% endif %}
+{% endblock %}

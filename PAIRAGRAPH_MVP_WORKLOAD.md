@@ -35,11 +35,11 @@
 
 ### P0 implementation status — 2026-10-22
 
-All ten P0 modules are implemented in the local Flask/SQLite application. See [README.md](README.md) for setup, demo credentials, and the runnable acceptance walkthrough.
+The P0 reading workflow is implemented in the local Flask/SQLite application. The current branch opens a server-selected local teacher workspace without login; the original C01 login/logout requirement is not active in this mode. See [README.md](README.md) for setup and the runnable acceptance walkthrough.
 
 | ID | Status | Implementation / verification |
 |---|---|---|
-| C01 | Complete | Local startup applies the schema and seeds a fictional demo account; hashed passwords, login/logout, and institute-scoped access. |
+| C01 | Local-mode scope | Startup applies the schema and seeds a fictional teacher workspace. Institute filtering remains; login/logout is not active in the current branch. Multi-user authentication remains required before a shared deployment. |
 | C02 | Complete | Add/list/edit pseudonyms with role-specific learning goals; existing activities retain their original goals. |
 | C03 | Complete | Create/select mentor–buddy pairs and display the two goals side by side. |
 | C04 | Complete | Extract and preview UTF-8 TXT/text-based PDF content; explicit teacher approval; reject unreadable scans and unsupported uploads. |
@@ -48,13 +48,13 @@ All ten P0 modules are implemented in the local Flask/SQLite application. See [R
 | C07 | Complete | Persisted, ordered Read → Retell → Teach-back stages on one shared activity. |
 | C08 | Complete | Teacher-entered mentor observations, buddy answers, individual ratings, notes, and mandatory confirmation. |
 | C09 | Complete | Atomic session/result saves, separate learner histories, goal-level counts, and persistence after application restart. |
-| C10 | Complete | Server-side validation, tenant authorization, CSRF, sign-in throttling, responsive styles, errors/empty states, no microphone/audio storage, and automated acceptance tests. |
+| C10 | Complete for local mode | Server-side validation, institute filtering, CSRF, responsive styles, errors/empty states, and acceptance tests. Microphone access is denied by default and enabled only on the opt-in reading page; no server audio storage. |
 
-Verification: `python -m unittest discover -s tests -v` runs 12 tests covering the complete acceptance journey, persistence after restart, institute isolation, approval gates, upload validation, page attribution, original goal preservation, malformed CSRF rejection, and duplicate/out-of-order submission protection. Use the virtual-environment command in the README on Windows.
+Verification: `python -m unittest discover -s tests -v` runs 33 tests covering P0 and P1, including the complete reading journey, restart persistence, institute isolation, approval gates, upload validation, attribution, original goal preservation, malformed CSRF rejection, and duplicate/out-of-order submission protection. Use the virtual-environment command in the README on Windows.
 
-Browser verification: completed sign-in → material approval → activity draft/review → Read → Retell → Teach-back → evaluation → separate progress, including a page refresh. Checked the activity at 390 px phone width and progress at 1440 px desktop width. The local demo session is explicitly labeled as fictional QA data.
+Initial P0 browser verification completed material approval → activity draft/review → Read → Retell → Teach-back → evaluation → separate progress, including a page refresh, at phone and desktop widths. The current branch opens the workspace directly. Local QA session evidence is explicitly labeled as fictional.
 
-No P1 feature is fully implemented; I07 has partial coverage through the existing learner session history (see the audit below). P2 is not implemented. OCR, AI adaptation, transcription, and automated voice grading remain outside P0. Teacher assessment and deterministic templates are the implemented behavior.
+P1 implementation and verification are recorded below. P2 is not implemented. OCR and automated voice grading remain out of scope. Teacher assessment and deterministic templates remain available without providers.
 
 ## 2. MVP Important Features — P1 (Only After P0)
 
@@ -70,17 +70,21 @@ No P1 feature is fully implemented; I07 has partial coverage through the existin
 
 ### P1 implementation audit — 2026-10-22
 
-Source inspection of the application routes, task generation, templates, browser script, database schema, dependencies, and tests found **0 of 7 P1 features fully implemented**. The statuses below describe existing code; they do not represent a new runtime acceptance test.
+The initial audit correctly found 0 of 7 features complete. The implementation below supersedes that audit. **I01, I02, and I04–I07 are implemented. I03 has integration and fallback code but awaits the separate voice provider for live acceptance.** The supplied `claude-haiku-5-5` model is used only for RAG-grounded activity generation, as requested.
 
 | ID | Status | Evidence / remaining work |
 |---|---|---|
-| I01 | Not implemented | `app.py:make_tasks` produces fixed goal-specific templates; `templates/new_activity.html` explicitly states that no AI provider is used. No provider integration, age-based adaptation, or provider-output JSON validation exists. |
-| I02 | Not implemented | The application sends `Permissions-Policy: microphone=(), camera=()`, and the relay is labeled "No recording". No recording, playback, authorization, or audio deletion workflow exists. |
-| I03 | Not implemented | No transcription provider, recording submission endpoint, editable transcript, or passage comparison view exists. |
-| I04 | Not implemented | No skip/substitution detection, suggested flags, or teacher accept/reject workflow exists. Current evidence is entered manually by the teacher. |
-| I05 | Not implemented | Progress displays saved results and goal-level counts, but no next-session recommendation based on those observations and approved material is produced. |
-| I06 | Not implemented | P0 activity review permits approval of deterministic tasks. It does not support editing AI adaptations or reviewing suggested reading observations before saving evidence. |
-| I07 | Partial — not complete | `templates/progress.html` displays each learner's historical goal, rating, observations, and shared notes per session, plus aggregate goal counts. A compact session summary that explicitly brings together practiced skills and both learners' results is not implemented. |
+| I01 | Implemented; live RAG verified | Optional provider uses one retrieved approved passage, goals, and age band; validates task JSON and source vocabulary, labels AI output, retains original suggestions, and requires teacher approval. Live validated generation succeeded against the supplied model server. Provider failure produces a labeled deterministic fallback. |
+| I02 | Implemented; synthetic-audio browser verified | Explicit recording authorization; Start/Stop/Playback/Delete; off by default; 60-second/5 MB cap; browser-memory audio with object-URL cleanup and track shutdown. No server audio files. |
+| I03 | Integration ready; voice provider pending | A separate configurable transcription endpoint/key/model, opt-in submission, editable attributed transcript drafts, passage comparison, upload validation, and failure paths are implemented and tested with provider fixtures. Live speech-to-text is not claimed complete; the user will supply a separate voice model. Until then, sending audio is disabled and manual transcripts work. |
+| I04 | Implemented | Word alignment surfaces possible skips, substitutions, and insertions as unconfirmed suggestions. Teacher accepts/rejects each; acceptance requires a teacher-written note. No automatic diagnosis or grade. |
+| I05 | Implemented | Rule-based next-session practice uses the latest confirmed results for each current goal, shows its evidence, and ranks approved passages with visible attribution. No-history and no-material states are explicit. Teacher selects a passage to create a new draft. |
+| I06 | Implemented | Teacher can edit/reject AI task drafts before approval, edit transcripts, accept/reject comparison suggestions, and explicitly select confirmed notes for learner evidence. Edits reset comparison review; stale forms are rejected; completed-session evidence is frozen. |
+| I07 | Implemented | A combined session summary shows both learners' original goals, practiced skills/tasks, individual ratings and observations, shared teach-back/notes, confirming teacher, and passage attribution. Linked from saved activities and learner history. |
+
+Verification: 33 automated tests pass, including provider protocol/JSON/error handling, fallback, authorization/consent, no-default recording, in-memory uploads, transcript revisions, accepted/rejected evidence boundaries, tenant isolation, recommendations, and summary persistence. Chromium recording QA used a synthetic stream to verify authorization → record → stop → playback → delete and ended audio tracks. No learner audio was used. Voice recognition remains pending its separate model and endpoint.
+
+Browser acceptance also completed live RAG generation → teacher edit/approval → manual transcript comparison/review → explicit evidence selection → combined summary → next-session recommendations. The saved summary survived refresh and had no horizontal overflow at 375, 768, and 1440 px.
 
 ### P1 acceptance demonstration
 - AI output is attributed to an approved source and can be edited or rejected.

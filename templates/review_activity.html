@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% from '_activity_parts.html' import source %}
+{% block title %}Edit activity draft{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('activity',ident=activity.id) }}">← Activity review</a>
+<div class="page-heading"><div><p class="eyebrow">TEACHER REVIEW</p><h1>Shape the next step</h1><p class="muted">Edit both tasks before approving this activity. The shared source passage stays intact.</p></div></div>
+{% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+<details class="card" open><summary>Approved source passage</summary><div class="passage">{{ activity.source.text }}</div>{{ source(activity) }}</details>
+{% if activity.tasks.origin == 'ai' %}<p class="notice">AI-assisted adaptation · {{ activity.tasks.model }} · Ages {{ activity.tasks.age_band }}. These tasks are unapproved suggestions.</p>{% endif %}
+<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="revision" value="{{ revision }}">
+<label>Mentor task · {{ activity.mentor_goal }}<textarea name="mentor" rows="5" minlength="10" maxlength="2000" required>{{ values.mentor }}</textarea></label>
+<label>Buddy task · {{ activity.buddy_goal }}<textarea name="buddy" rows="5" minlength="10" maxlength="2000" required>{{ values.buddy }}</textarea></label>
+<label>Shared teach-back<textarea name="teach_back" rows="4" minlength="10" maxlength="2000" required>{{ values.teach_back }}</textarea></label>
+<label>Vocabulary words from the passage <small>One to five words, separated by commas</small><input name="vocabulary" value="{{ values.vocabulary|join(', ') }}" required maxlength="304"></label>
+<button name="action" value="save">Save draft for approval →</button></form>
+{% if activity.tasks.generated_tasks %}<details class="card"><summary>Original AI task suggestions · for attribution</summary>{% for key in ['mentor','buddy','teach_back'] %}<h3>{{ key|replace('_',' ')|capitalize }}</h3><p>{{ activity.tasks.generated_tasks[key] }}</p>{% endfor %}</details>{% endif %}
+{% if activity.tasks.origin == 'ai' %}<form method="post" class="card stack">{{ csrf() }}<input type="hidden" name="revision" value="{{ revision }}"><p>Reject this adaptation and restore the original goal-based template tasks.</p><button class="secondary" name="action" value="reject">Reject AI adaptation</button></form>{% endif %}
+{% endblock %}

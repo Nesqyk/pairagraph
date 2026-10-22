@@ -1,4 +1,4 @@
-"""Pairagraph P0: teacher-led paired reading, backed by SQLite."""
+"""Pairagraph: teacher-led paired reading and reviewed adaptations, backed by SQLite."""
 from __future__ import annotations
 
 import io
@@ -10,10 +10,13 @@ import secrets
 import sqlite3
 from datetime import timedelta
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, Request, abort, flash, g, redirect, render_template, request, session, url_for
 from pypdf import PdfReader
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import HTTPException
+
+from providers import OpenAIProvider, ProviderError
+from p1 import AGE_BANDS, confirmed_flags, register_p1
 
 ROOT = Path(__file__).resolve().parent
 GOALS = {
@@ -40,8 +43,15 @@ def db():
     return g.db
 
 
+class MemoryUploadRequest(Request):
+    # Flask normally spools larger uploads to disk. Keep opt-in audio in RAM only.
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
+        return io.BytesIO()
+
+
 def create_app(test_config=None):
     app = Flask(__name__)
+    app.request_class = MemoryUploadRequest
     instance = Path(app.instance_path)
     instance.mkdir(exist_ok=True)
     keyfile = instance / 'secret.key'
@@ -61,6 +71,17 @@ def create_app(test_config=None):
     )
     if test_config:
         app.config.update(test_config)
+    provider_file = instance / 'provider.json'
+    local_provider = json.loads(provider_file.read_text(encoding='utf-8-sig')) if provider_file.exists() else {}
+    app.extensions['reading_provider'] = app.config.get('READING_PROVIDER') or OpenAIProvider(
+        api_key=os.environ.get('PAIRAGRAPH_AI_KEY') or os.environ.get('OPENAI_API_KEY') or local_provider.get('api_key', ''),
+        model=os.environ.get('PAIRAGRAPH_AI_MODEL') or local_provider.get('model', 'gpt-4o-mini'),
+        base_url=os.environ.get('PAIRAGRAPH_AI_BASE_URL') or local_provider.get('base_url', 'https://api.openai.com/v1'),
+        api_mode=os.environ.get('PAIRAGRAPH_AI_MODE') or local_provider.get('api_mode', 'responses'),
+        transcription_url=os.environ.get('PAIRAGRAPH_STT_URL') or local_provider.get('transcription_url', ''),
+        transcription_model=os.environ.get('PAIRAGRAPH_STT_MODEL') or local_provider.get('transcription_model', 'gpt-transcribe'),
+        transcription_key=os.environ.get('PAIRAGRAPH_STT_KEY') or local_provider.get('transcription_key', ''),
+    )
 
     @app.before_request
     def prepare():
@@ -81,8 +102,8 @@ def create_app(test_config=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'same-origin'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'"
-        response.headers['Permissions-Policy'] = 'microphone=(), camera=()'
+        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self' blob:; frame-ancestors 'none'; form-action 'self'"
+        response.headers['Permissions-Policy'] = 'microphone=(self), camera=()' if request.endpoint == 'reading' else 'microphone=(), camera=()'
         response.headers['Cache-Control'] = 'no-store'
         return response
 
@@ -94,7 +115,8 @@ def create_app(test_config=None):
 
     @app.context_processor
     def context():
-        return dict(goals=GOALS, ratings=RATINGS)
+        return dict(goals=GOALS, ratings=RATINGS, age_bands=AGE_BANDS,
+                    provider_ready=app.extensions['reading_provider'].configured)
 
     @app.errorhandler(HTTPException)
     def error(e):
@@ -272,10 +294,28 @@ def create_app(test_config=None):
             if not chunks:
                 abort(400, 'This material has no readable passages.')
             chunk = retrieve(chunks, query)
+            selected_chunk = request.form.get('chunk_id', '')
+            if selected_chunk:
+                chunk = next((row for row in chunks if str(row['id']) == selected_chunk), None)
+                if chunk is None:
+                    abort(400, 'Choose a passage from the selected approved material.')
             tasks = make_tasks(chunk['text'], pair['mentor_goal'], pair['buddy_goal'])
+            tasks['origin'] = 'template'
+            if request.form.get('use_ai') == 'yes':
+                age_band = choice('age_band', AGE_BANDS)
+                try:
+                    adapted = app.extensions['reading_provider'].adapt(chunk['text'], pair['mentor_goal'], pair['buddy_goal'], age_band)
+                    tasks.update(adapted)
+                    tasks.update(origin='ai', age_band=age_band, model=app.extensions['reading_provider'].model,
+                                 generated_tasks=adapted.copy())
+                except ProviderError as exc:
+                    tasks['fallback_reason'] = str(exc)
+                    flash(str(exc) + ' A template draft was created for teacher review.', 'error')
             tasks['query'] = query
             tasks['retrieval_note'] = ('Keyword match' if query and keyword_score(chunk['text'], query) else
                                        'First passage (no keyword match)' if query else 'First passage (no topic specified)')
+            if selected_chunk:
+                tasks['retrieval_note'] = 'Teacher-selected recommended passage'
             with db():
                 ident = db().execute('''INSERT INTO activities(institute_id,pair_id,chunk_id,mentor_goal,buddy_goal,tasks)
                     VALUES (?,?,?,?,?,?)''', (g.teacher['institute_id'], pair['id'], chunk['id'], pair['mentor_goal'],
@@ -288,7 +328,10 @@ def create_app(test_config=None):
 
     @app.get('/activities/<int:ident>')
     def activity(ident):
-        return render_template('activity.html', activity=activity_info(ident))
+        act = activity_info(ident)
+        saved = db().execute('SELECT id FROM sessions WHERE activity_id=? AND institute_id=?',
+                             (ident, g.teacher['institute_id'])).fetchone()
+        return render_template('activity.html', activity=act, saved=saved)
 
     @app.post('/activities/<int:ident>/approve')
     def approve_activity(ident):
@@ -320,6 +363,7 @@ def create_app(test_config=None):
     @app.route('/activities/<int:ident>/evaluate', methods=['GET', 'POST'])
     def evaluate(ident):
         act = activity_info(ident)
+        reviewed_flags = confirmed_flags(db, ident)
         if act['status'] != 'approved' or act['stage'] != 3:
             abort(409, 'Complete Read, Retell, and Teach-back before recording results. Completed sessions cannot be submitted again.')
         if request.method == 'POST':
@@ -330,19 +374,29 @@ def create_app(test_config=None):
             notes = text_field('notes', 3000, 0)
             if request.form.get('confirm') != 'yes':
                 abort(400, 'Confirm that these are your teacher-reviewed observations.')
+            selected_ids = set(request.form.getlist('reading_flag'))
             try:
                 with db():
+                    db().execute('BEGIN IMMEDIATE')
+                    allowed_flags = {str(flag['id']): flag for flag in confirmed_flags(db, ident)}
+                    if not selected_ids.issubset(allowed_flags):
+                        abort(400, 'Only accepted, teacher-reviewed observations from this activity can be used.')
                     sid = db().execute('INSERT INTO sessions(institute_id,activity_id,teacher_id,notes) VALUES (?,?,?,?)',
                         (g.teacher['institute_id'], ident, g.teacher['id'], notes)).lastrowid
                     for role, rating, evidence in [('mentor', mentor_rating, mentor_evidence), ('buddy', buddy_rating, buddy_evidence)]:
-                        db().execute('INSERT INTO results(session_id,learner_id,role,goal,rating,evidence) VALUES (?,?,?,?,?,?)',
-                            (sid, act['pair'][role + '_id'], role, act[role + '_goal'], rating, evidence))
+                        role_flags = [flag for key, flag in allowed_flags.items() if key in selected_ids and flag['role'] == role]
+                        for flag in role_flags:
+                            evidence += '\nTeacher-confirmed reading observation: ' + flag['teacher_note']
+                        rid = db().execute('INSERT INTO results(session_id,learner_id,role,goal,rating,evidence) VALUES (?,?,?,?,?,?)',
+                            (sid, act['pair'][role + '_id'], role, act[role + '_goal'], rating, evidence)).lastrowid
+                        db().executemany('INSERT INTO result_reading_flags(result_id,flag_id) VALUES (?,?)',
+                                         [(rid, flag['id']) for flag in role_flags])
                     db().execute("UPDATE activities SET status='completed' WHERE id=?", (ident,))
             except sqlite3.IntegrityError:
                 abort(409, 'This session has already been saved.')
             flash('Session confirmed. Separate results are saved for both learners.', 'success')
-            return redirect(url_for('progress'))
-        return render_template('evaluate.html', activity=act)
+            return redirect(url_for('session_summary', ident=sid))
+        return render_template('evaluate.html', activity=act, reviewed_flags=reviewed_flags)
 
     @app.get('/progress')
     def progress():
@@ -351,7 +405,7 @@ def create_app(test_config=None):
         learner = owned('learners', selected) if selected else (learners[0] if learners else None)
         history, totals = [], []
         if learner:
-            history = db().execute('''SELECT r.*, s.created_at, s.notes, s.activity_id, d.title FROM results r
+            history = db().execute('''SELECT r.*, s.id saved_session_id, s.created_at, s.notes, s.activity_id, d.title FROM results r
                 JOIN sessions s ON s.id=r.session_id JOIN activities a ON a.id=s.activity_id
                 JOIN chunks c ON c.id=a.chunk_id JOIN documents d ON d.id=c.document_id
                 WHERE r.learner_id=? AND s.institute_id=? ORDER BY s.id DESC''', (learner['id'], g.teacher['institute_id'])).fetchall()
@@ -361,9 +415,11 @@ def create_app(test_config=None):
                 (learner['id'], g.teacher['institute_id'])).fetchall()
         return render_template('progress.html', learners=learners, learner=learner, history=history, totals=totals)
 
+    register_p1(app, db, owned, pair_info, activity_info, text_field, make_tasks)
     with app.app_context():
         g.app_db = app.config['DATABASE']
-        db().executescript((ROOT / 'migrations' / '001_initial.sql').read_text())
+        for migration in sorted((ROOT / 'migrations').glob('*.sql')):
+            db().executescript(migration.read_text(encoding='utf-8'))
         seed(db())
     return app
 

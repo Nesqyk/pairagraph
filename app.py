@@ -17,6 +17,7 @@ from werkzeug.exceptions import HTTPException
 
 from providers import OpenAIProvider, ProviderError
 from p1 import AGE_BANDS, confirmed_flags, register_p1
+from student import initialize_student_library, register_student
 
 ROOT = Path(__file__).resolve().parent
 GOALS = {
@@ -103,7 +104,7 @@ def create_app(test_config=None):
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'same-origin'
         response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self' blob:; frame-ancestors 'none'; form-action 'self'"
-        response.headers['Permissions-Policy'] = 'microphone=(self), camera=()' if request.endpoint == 'reading' else 'microphone=(), camera=()'
+        response.headers['Permissions-Policy'] = 'microphone=(self), camera=()' if request.endpoint in ('reading', 'student_reading') else 'microphone=(), camera=()'
         response.headers['Cache-Control'] = 'no-store'
         return response
 
@@ -120,7 +121,7 @@ def create_app(test_config=None):
 
     @app.errorhandler(HTTPException)
     def error(e):
-        return render_template('error.html', error=e), e.code
+        return render_template('student/error.html' if request.path.startswith('/student') else 'error.html', error=e), e.code
 
     def owned(table, ident):
         # Table names are internal constants; identifiers and tenants are bound parameters.
@@ -168,6 +169,10 @@ def create_app(test_config=None):
         return redirect(url_for('dashboard'))
 
     @app.get('/')
+    def home():
+        return app.view_functions['student_home']()
+
+    @app.get('/workspace')
     def dashboard():
         tenant = g.teacher['institute_id']
         counts = {table: db().execute(f'SELECT count(*) FROM {table} WHERE institute_id=?', (tenant,)).fetchone()[0]
@@ -416,11 +421,16 @@ def create_app(test_config=None):
         return render_template('progress.html', learners=learners, learner=learner, history=history, totals=totals)
 
     register_p1(app, db, owned, pair_info, activity_info, text_field, make_tasks)
+    register_student(app, db, owned, chunk_text)
     with app.app_context():
         g.app_db = app.config['DATABASE']
         for migration in sorted((ROOT / 'migrations').glob('*.sql')):
             db().executescript(migration.read_text(encoding='utf-8'))
         seed(db())
+        if app.config.get('STUDENT_BUILTINS', True):
+            institute = db().execute('SELECT institute_id FROM teachers WHERE id=?', (app.config['LOCAL_TEACHER_ID'],)).fetchone()
+            if institute:
+                initialize_student_library(db(), institute['institute_id'], chunk_text)
     return app
 
 

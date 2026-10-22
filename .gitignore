@@ -6,3 +6,7 @@ instance/
 test-results/
 .playwright-cli/
 output/playwright/
+voice.env
+.env
+.env.*
+!.env.example

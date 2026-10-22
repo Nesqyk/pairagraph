@@ -26,7 +26,7 @@ class P1Test(unittest.TestCase):
             'teach_back': 'Buddy explains one seed-library idea back to the mentor.', 'vocabulary': ['community'],
         })
         self.provider.transcribe = Mock(return_value='The seed library has seeds for neighbors.')
-        self.app = create_app({'TESTING': True, 'DATABASE': self.path, 'SECRET_KEY': 'test',
+        self.app = create_app({'TESTING': True, 'STUDENT_BUILTINS': False, 'DATABASE': self.path, 'SECRET_KEY': 'test',
                                'READING_PROVIDER': self.provider})
         self.client = self.app.test_client()
 

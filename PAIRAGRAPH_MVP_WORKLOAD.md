@@ -1,5 +1,7 @@
 # Pairagraph — MVP Workload Breakdown
 
+> Current product direction: a self-guided student flow with no teacher steps. Home → Reading → Analysis → Next Story → Progress is implemented at `/`. Built-in stories are available immediately, and validated targeted stories require no human approval. Transcript differences remain explicitly tentative; this version does not score pronunciation or diagnose reading difficulties. The original teacher-led workload below is retained as implementation history. See README for the current student demo and verification.
+
 > Implementation work split into Core Functions (P0), Important Features (P1), and Improvements (P2).
 > Originally based on `PAIRAGRAPH_MVP_BUILD_SPEC.md` (not present in this repository). This workload is the available implementation checklist. The goal is a real, working teacher → reading pair → approved material → shared activity → evaluation → progress loop.
 

@@ -1,5 +1,23 @@
 # Pairagraph
 
+## Current student demo
+
+The default homepage is now a self-guided student reading room at <http://localhost:5000>. There is no teacher setup, teacher review, or approval step in this flow.
+
+1. **Home:** select a reader and choose **Start Reading**. Three original built-in stories are available immediately.
+2. **Reading:** view the passage, opt into recording, start/stop, listen back, and submit. Browser recordings stop at three minutes; uploads are limited to 5 MB. A manual transcript option is clearly labeled.
+3. **Analysis:** compare the source and transcript side by side. Possible changed, skipped, or extra words are highlighted. Feedback is supportive practice guidance, not a pronunciation score or diagnosis.
+4. **Next Story:** possible differences can generate a targeted practice story; the validated story is ready to read directly. With no differences, another library passage is selected randomly. Generation failures fall back to a suitable library passage or rereading.
+5. **Progress:** saved reading sessions, explored passages, and recurring suggested practice words. An unheard ending is not counted as recurring difficult words.
+
+The student UI automatically loads `GEMINI_API_KEY` from the ignored `voice.env` for Gemini transcription. The separately ignored `instance/ai_config.json` configures the existing shared story gateway. Keys stay on the server. Audio is processed in memory and not retained by Pairagraph. Provider processing policies apply to submitted audio. Analysis happens after submission, not live during reading.
+
+Run the existing Python startup command below. The original workspace remains at `/workspace` for compatibility, but is not part of student navigation. Student reading data lives in `student_readings` via the additive `003_student_ui.sql` migration; prior records are preserved. Built-in story seeding is idempotent.
+
+Validation: 40 automated tests pass. Browser checks covered all five screens at desktop and 390 px phone widths, including the start dialog, recording consent gate, manual submission, highlighted differences, next-story navigation, persistent history, and lack of horizontal overflow or JavaScript errors. Browser QA used an isolated database and manual transcripts, not real learner recordings.
+
+The sections below document the earlier workspace implementation retained for compatibility.
+
 A local, teacher-led paired-reading MVP built with Flask and SQLite. One approved passage supports a mentor vocabulary task, a buddy comprehension task, and a shared teach-back. Teachers assess each learner separately.
 
 ## Run locally

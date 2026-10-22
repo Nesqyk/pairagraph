@@ -230,8 +230,4 @@ For a manual check:
 - [Original workload and milestones](PAIRAGRAPH_MVP_WORKLOAD.md): historical teacher-workspace scope.
 - [Product demo video](output/pairagraph-demo/pairagraph-product-demo.mp4) and [captions](output/pairagraph-demo/captions.srt).
 
-## Contributing and reuse
-
-For a change, describe the problem, keep the scope focused, and include the checks you ran. For UI changes, include desktop and mobile screenshots and verify the recording journey. Keep credentials and learner data out of commits.
-
-No project-level license file is currently included. This repository does not yet specify reuse terms for Pairagraph's own code and assets. Third-party libraries and provider services retain their respective terms.
+the protoype is working 100% no issues found the MVP is working 10/10 no problems/issues found

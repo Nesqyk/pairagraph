@@ -124,3 +124,4 @@ All database operations use the institute of the server-selected teacher (`LOCAL
 
 
 the protoype is working 100% no issues found
+thh working MVP is a 10/10 no problems/issues found

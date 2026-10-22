@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Shared milestones{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">EVERY SESSION COUNTS</p><h1>Shared milestones</h1><p>Celebrate showing up and practicing together. Milestones count confirmed sessions, not reading ability.</p></div><a class="button secondary" href="{{ url_for('pair_suggestions') }}">Find a reading partner</a></div>
+<div class="learner-grid">{% for pair in pairs %}<article class="card"><h2>{{ pair.mentor }} & {{ pair.buddy }}</h2><p>{{ pair.sessions }} confirmed shared sessions</p><ul class="milestones">{% for target in milestones %}<li class="{{ 'earned' if pair.sessions >= target else '' }}">{{ '✓' if pair.sessions >= target else '○' }} {{ target }} {{ 'session' if target == 1 else 'sessions' }}{{ ' · Reached together' if pair.sessions >= target else ' · Something to work toward' }}</li>{% endfor %}</ul><a href="{{ url_for('recommendations',ident=pair.id) }}">Plan your next practice →</a></article>{% else %}<p class="empty">Create a reading pair to begin your shared milestones.</p>{% endfor %}</div>
+{% endblock %}

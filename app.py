@@ -17,6 +17,8 @@ from werkzeug.exceptions import HTTPException
 
 from providers import OpenAIProvider, ProviderError
 from p1 import AGE_BANDS, confirmed_flags, register_p1
+from p2 import LANGUAGES, register_p2
+from language_tasks import local_tasks
 
 ROOT = Path(__file__).resolve().parent
 GOALS = {
@@ -299,9 +301,19 @@ def create_app(test_config=None):
                 chunk = next((row for row in chunks if str(row['id']) == selected_chunk), None)
                 if chunk is None:
                     abort(400, 'Choose a passage from the selected approved material.')
-            tasks = make_tasks(chunk['text'], pair['mentor_goal'], pair['buddy_goal'])
+            language = request.form.get('language', 'en')
+            if language not in LANGUAGES:
+                abort(400, 'Choose a supported task language.')
+            if language != 'en':
+                reviewed_language = db().execute('SELECT language FROM material_languages WHERE document_id=?', (doc['id'],)).fetchone()
+                if not reviewed_language or reviewed_language['language'] != language:
+                    abort(400, 'Review and confirm this material in the selected language before building tasks.')
+            tasks = make_tasks(chunk['text'], pair['mentor_goal'], pair['buddy_goal'], language)
+            tasks['language'] = language
             tasks['origin'] = 'template'
-            if request.form.get('use_ai') == 'yes':
+            if request.form.get('use_ai') == 'yes' and language != 'en':
+                tasks['fallback_reason'] = 'AI adaptation in this language is not validated. Localized template tasks require teacher language review.'
+            if request.form.get('use_ai') == 'yes' and language == 'en':
                 age_band = choice('age_band', AGE_BANDS)
                 try:
                     adapted = app.extensions['reading_provider'].adapt(chunk['text'], pair['mentor_goal'], pair['buddy_goal'], age_band)
@@ -416,6 +428,7 @@ def create_app(test_config=None):
         return render_template('progress.html', learners=learners, learner=learner, history=history, totals=totals)
 
     register_p1(app, db, owned, pair_info, activity_info, text_field, make_tasks)
+    register_p2(app, db, owned, activity_info)
     with app.app_context():
         g.app_db = app.config['DATABASE']
         for migration in sorted((ROOT / 'migrations').glob('*.sql')):
@@ -481,7 +494,9 @@ def retrieve(chunks, query):
     return max(chunks, key=lambda row: keyword_score(row['text'], query))
 
 
-def make_tasks(passage, mentor_goal, buddy_goal):
+def make_tasks(passage, mentor_goal, buddy_goal, language='en'):
+    if language in ('fil', 'ceb'):
+        return local_tasks(passage, mentor_goal, buddy_goal, language)
     words = list(dict.fromkeys(re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", passage.lower())))
     vocabulary = sorted((w for w in words if len(w) >= 5), key=lambda w: -len(w))[:3]
     if not vocabulary:

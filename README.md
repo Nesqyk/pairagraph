@@ -44,6 +44,17 @@ Activity approval is separate from material approval. Draft activities cannot st
 
 Voice recognition is **pending the separate voice model/endpoint**. The submitted RAG model is used only for source-grounded task generation. It is not used for audio. Manual transcripts and all P0 functionality work while voice recognition is unavailable.
 
+## P2 workflows
+
+- **Shared milestones:** Open the sidebar's Shared milestones page to celebrate 1, 3, 5, and 10 confirmed sessions together. These are practice milestones, not ability rankings.
+- **Practice insights and exports:** In Learner progress, select a learner and open Practice insights & reports. Charts appear after three confirmed sessions; the session table remains available before that. Export CSV or PDF for that learner. Historical goals and source attribution are preserved; ratings describe teacher observations rather than measured improvement.
+- **Reading display:** On a page with a passage, choose Standard, Large, or Extra large text and toggle Focus reading. Text size is remembered on the device; keyboard focus and reduced-motion preferences are supported.
+- **Suggested pairs:** In Reading pairs, open Find a reading partner. Set general local-time availability slots for each learner, then review suggestions with shared availability and both learning goals. Choose a pair explicitly; confirm the exact schedule yourself. Suggestions are rule-based, not AI predictions of compatibility.
+- **Offline reading:** On an approved, unfinished Story Relay, authorize storage on a trusted device and click Save for offline reading. Open Offline reading before disconnecting. You can complete Read → Retell → Teach-back offline and reload without losing local steps. Reconnect and click Synchronize relay progress, then return online for teacher evaluation. Nothing synchronizes in the background. If the online activity, pair goals, approval, or passage changed, the app keeps your local copy and rejects the update; inspect the online activity, then explicitly replace the saved copy if appropriate. Do not delete a copy until you have synchronized progress you want to keep. Device copies contain pseudonyms/passages and remain until deleted. Delete individual copies or all offline data from Offline reading. Recording and assessments stay online.
+- **Language review (partial M08):** Material library → a document → Review material language lets a teacher review content as English, Filipino, or Cebuano. In Build activity, choose the matching task language. Filipino/Cebuano tasks use local templates and require teacher wording review; they do not translate the source passage. AI adaptation and speech-model accuracy in these languages have not been validated. A fluent speaker and a configured speech provider must complete language-by-language acceptance before M08 is complete.
+
+P2 browser checks used Chromium at 375/768/1440 px and offline mode. Physical Android devices and field bandwidth behavior still need testing. PDF export adds ReportLab; rerun `pip install -r requirements.txt` after updating.
+
 ## Provider configuration
 
 Text generation supports OpenAI-compatible Chat Completions and the OpenAI Responses API. The local RAG service has been verified with `claude-haiku-5-5` at `http://192.168.106.122:8080/api/chat/completions`. Its key is stored only in ignored `instance/provider.json`; never commit that file or paste a real key into the example below.
@@ -72,10 +83,10 @@ API references: [Open WebUI Chat Completions](https://docs.openwebui.com/referen
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The 33 tests use temporary databases and mocked provider calls. They cover the complete reading journey, restart persistence, CSRF, institute boundaries, upload errors, attributed generation and fallback, task edits/rejection, stale reviews, consent and audio validation, transcript decisions, evidence selection, recommendations, summaries, and both API protocols. Live RAG generation was also verified against the configured server; recording was verified in Chromium with synthetic audio. Live speech-to-text remains pending.
+The 41 tests use temporary databases and mocked provider calls. They cover the complete reading journey, restart persistence, CSRF, institute boundaries, upload errors, attributed generation and fallback, task edits/rejection, stale reviews, consent and audio validation, transcript decisions, evidence selection, recommendations, summaries, both API protocols, and the P2 milestone/chart/matching/export/offline/language gates. Earlier P1 checks verified live RAG generation against the configured server and Chromium recording with synthetic audio. Live speech-to-text remains pending.
 
 ## Scope and privacy
 
-See [the workload and verification status](PAIRAGRAPH_MVP_WORKLOAD.md) for feature-by-feature scope. P1 I01, I02, and I04–I07 are implemented; I03 has the consent, adapter, editable-draft, and failure paths implemented but awaits the separate voice provider for live acceptance. P2 remains future work. There is no automated voice grading. Teacher assessments are observations, not proof of measured improvement.
+See [the workload and verification status](PAIRAGRAPH_MVP_WORKLOAD.md) for feature-by-feature scope. P1 I01, I02, and I04–I07 are implemented; I03 awaits the separate voice provider for live acceptance. P2 M01–M07 are implemented within the local-workspace scope; M08 has language-review/template foundations but still needs fluent-speaker and speech-model validation. Real Android QA is pending. There is no automated voice grading. Teacher assessments are observations, not proof of measured improvement.
 
 All database operations use the institute of the server-selected teacher (`LOCAL_TEACHER_ID`, default 1). Browser cookies cannot choose another teacher. The current local mode has no login/logout; institute/account administration is not included. The SQLite database and local provider configuration are not encrypted at rest.

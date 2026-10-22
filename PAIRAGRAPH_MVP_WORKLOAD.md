@@ -50,11 +50,11 @@ The P0 reading workflow is implemented in the local Flask/SQLite application. Th
 | C09 | Complete | Atomic session/result saves, separate learner histories, goal-level counts, and persistence after application restart. |
 | C10 | Complete for local mode | Server-side validation, institute filtering, CSRF, responsive styles, errors/empty states, and acceptance tests. Microphone access is denied by default and enabled only on the opt-in reading page; no server audio storage. |
 
-Verification: `python -m unittest discover -s tests -v` runs 33 tests covering P0 and P1, including the complete reading journey, restart persistence, institute isolation, approval gates, upload validation, attribution, original goal preservation, malformed CSRF rejection, and duplicate/out-of-order submission protection. Use the virtual-environment command in the README on Windows.
+Verification: `python -m unittest discover -s tests -v` runs 41 tests covering P0, P1, and P2, including the complete reading journey, restart persistence, institute isolation, approval gates, upload validation, attribution, original goal preservation, malformed CSRF rejection, and duplicate/out-of-order submission protection. Use the virtual-environment command in the README on Windows.
 
 Initial P0 browser verification completed material approval → activity draft/review → Read → Retell → Teach-back → evaluation → separate progress, including a page refresh, at phone and desktop widths. The current branch opens the workspace directly. Local QA session evidence is explicitly labeled as fictional.
 
-P1 implementation and verification are recorded below. P2 is not implemented. OCR and automated voice grading remain out of scope. Teacher assessment and deterministic templates remain available without providers.
+P1 and P2 implementation and verification are recorded below. OCR and automated voice grading remain out of scope. Teacher assessment and deterministic templates remain available without providers.
 
 ## 2. MVP Important Features — P1 (Only After P0)
 
@@ -103,6 +103,21 @@ Browser acceptance also completed live RAG generation → teacher edit/approval 
 | M06 | Offline-first workflows | Cache approved activity with deliberate synchronization/conflict handling | Full-stack |
 | M07 | Report export | Teacher-friendly PDF/CSV reports | Backend |
 | M08 | Additional languages | Validate reading content and speech models language by language | AI / Product |
+
+### P2 implementation status — 2026-10-22
+
+| ID | Status | Implementation / limits |
+|---|---|---|
+| M01 | Implemented | Shared milestones at 1, 3, 5, and 10 confirmed sessions per pair. No learner leaderboard, ability score, or public ranking. Drafts and unfinished relays do not earn milestones. |
+| M02 | Implemented | Learner assessment distribution charts after three confirmed sessions, accessible numerical labels and session evidence table. Reports distinguish recorded observations from proven improvement; they do not plot ratings as a measured reading score. |
+| M03 | Implemented | Standard/large/extra-large passage text, device-local size preference, focus reading with an exit control, keyboard focus outlines, reduced-motion support, and language tags on tasks. |
+| M04 | Implemented; real Android QA pending | Touch-sized controls, wrapping actions and long content, a horizontally scrollable evidence table, local assets without external fonts/CDNs, and an offline shell. Chromium viewport checks passed at 375, 768, and 1440 px; physical Android and field bandwidth testing remain pending. |
+| M05 | Implemented | Persistent teacher-entered availability; rule-based mentor/buddy suggestions show both current learning goals and shared time slots. Existing pairs are excluded; unknown/disjoint availability produces no suggestion. A teacher explicitly chooses a pair and confirms its actual schedule. |
+| M06 | Implemented for the relay | Explicit device-storage authorization saves only an unfinished approved activity and its attributed passage. Read/Retell/Teach-back work offline, including reloads. Explicit online synchronization checks workspace, source approval, and a revision fingerprint; changed or completed activities are rejected without overwriting either copy. Teacher evaluation, transcripts, and recording remain online. Individual/all-copy deletion is available. Copies remain on the device until deleted; no background sync. |
+| M07 | Implemented | Learner CSV and paginated PDF reports contain historical goals, ratings, observations, shared notes, dates, and source/page/chunk attribution. CSV formula prefixes are neutralized. Reports use institute-scoped reads, preserve original evidence, and handle empty histories. |
+| M08 | Partial — language validation pending | Teacher content-language review and Filipino/Cebuano task templates are implemented, with Unicode vocabulary extraction and preserved language on draft rejection. Non-English AI requests use an explicitly labeled localized-template fallback. UI administration remains English; passage translation is not provided. Fluent-speaker acceptance of task wording and live speech-model evaluation per language are still required before this item can be marked complete. |
+
+Verification: **41 automated tests passed** (the 33 existing P0/P1 tests plus 8 P2 tests). New checks cover confirmed-only milestones, chart thresholds, matching availability, tenant boundaries, CSV formula safety, PDF pagination, migration persistence, offline approval/CSRF/revision gates, and language review/fallback behavior. Browser QA used fictional data and verified save → offline reload → all three relay steps → reload persistence → explicit sync, deletion, display controls, language form submission, and responsive screens at 375/768/1440 px without JavaScript errors. A three-page PDF with long fictional evidence was rendered and visually inspected. No learner audio or live AI calls were used for P2 validation.
 
 ## Parallel team workload (suggested)
 

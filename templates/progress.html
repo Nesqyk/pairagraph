@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Learner progress{% endblock %}
 {% block content %}
+{% if learner %}<div class="actions"><a class="button secondary" href="{{ url_for('insights',ident=learner.id) }}">Practice insights & reports</a></div>{% endif %}
 <div class="page-heading"><div><p class="eyebrow">INDIVIDUAL GROWTH, SHARED EXPERIENCE</p><h1>Learner progress</h1><p class="muted">A history of teacher-confirmed practice and observations.</p></div></div>
 <form method="get" class="filter"><label>Choose a learner<select name="learner">{% for l in learners %}<option value="{{ l.id }}" {% if learner and l.id == learner.id %}selected{% endif %}>{{ l.alias }} · {{ l.role|capitalize }}</option>{% endfor %}</select></label><button class="secondary">View progress</button></form>
 {% if learner %}<section class="card"><span class="badge {{ learner.role }}">{{ learner.role|capitalize }}</span><h2>{{ learner.alias }}</h2><p>Current goal: <strong>{{ learner.goal }}</strong></p><div class="goal-counts">{% for goal in totals %}<div><h3>{{ goal.goal }}</h3><span><strong>{{ goal.practiced }}</strong> confirmed sessions</span><span><strong>{{ goal.demonstrated }}</strong> marked demonstrated</span></div>{% else %}<p class="muted">No confirmed practice yet for this learner.</p>{% endfor %}</div><p class="hint">Counts describe recorded practice and teacher assessments. They are not proof of measured improvement.</p></section>

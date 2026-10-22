@@ -79,7 +79,7 @@ def register_p1(app, db, owned, pair_info, activity_info, text_field, make_tasks
                 abort(400, 'Choose whether to save or reject the draft.')
             tasks = dict(act['tasks'])
             if request.form.get('action') == 'reject':
-                tasks.update(make_tasks(act['source']['text'], act['mentor_goal'], act['buddy_goal']))
+                tasks.update(make_tasks(act['source']['text'], act['mentor_goal'], act['buddy_goal'], tasks.get('language', 'en')))
                 tasks.update(origin='template', adaptation_review='rejected', teacher_edited=False)
             else:
                 values = {key: request.form.get(key, '').strip() for key in ('mentor', 'buddy', 'teach_back')}

@@ -10,10 +10,20 @@ import secrets
 import sqlite3
 from datetime import timedelta
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, Request, abort, flash, g, redirect, render_template, request, session, url_for
 from pypdf import PdfReader
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import HTTPException
+from voice_routes import register_voice
+from rag import generate_rag_activity
+from reading_ai import ProviderError
+from voice_config import load_voice_env
+
+
+class MemoryUploadRequest(Request):
+    # Bound by MAX_CONTENT_LENGTH: avoid Flask's default large-upload disk spooling.
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
+        return io.BytesIO()
 
 ROOT = Path(__file__).resolve().parent
 GOALS = {
@@ -42,6 +52,7 @@ def db():
 
 def create_app(test_config=None):
     app = Flask(__name__)
+    app.request_class = MemoryUploadRequest
     instance = Path(app.instance_path)
     instance.mkdir(exist_ok=True)
     keyfile = instance / 'secret.key'
@@ -51,10 +62,30 @@ def create_app(test_config=None):
                 f.write(secrets.token_hex(32))
         except FileExistsError:
             pass
+    # Optional workstation configuration is ignored by Git and never sent to the browser.
+    config_path = instance / 'ai_config.json'
+    ai_local = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
+    voice_local = load_voice_env(ROOT / 'voice.env')
+    base_url = os.environ.get('OPENAI_BASE_URL') or ai_local.get('base_url', 'https://api.openai.com/v1')
+    api_key = os.environ.get('OPENAI_API_KEY') or ai_local.get('api_key', '')
+    speech_enabled = os.environ.get('PAIRAGRAPH_TRANSCRIPTION_ENABLED', str(ai_local.get('transcription_enabled', True))).lower() in ('1', 'true', 'yes')
+    gemini_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY') or voice_local.get('GEMINI_API_KEY') or voice_local.get('GOOGLE_API_KEY', '')
+    speech_provider = os.environ.get('PAIRAGRAPH_SPEECH_PROVIDER') or voice_local.get('PAIRAGRAPH_SPEECH_PROVIDER') or ('gemini' if gemini_key else 'openai')
+    speech_base = 'https://generativelanguage.googleapis.com/v1beta' if speech_provider == 'gemini' else ai_local.get('transcription_base_url', base_url)
+    speech_key = gemini_key if speech_provider == 'gemini' else (voice_local.get('OPENAI_API_KEY') or (api_key if speech_enabled else ''))
     app.config.update(
         SECRET_KEY=os.environ.get('PAIRAGRAPH_SECRET') or keyfile.read_text(),
         DATABASE=str(instance / 'pairagraph.sqlite3'), MAX_CONTENT_LENGTH=6 * 1024 * 1024,
         LOCAL_TEACHER_ID=1,
+        OPENAI_API_KEY=api_key,
+        OPENAI_BASE_URL=base_url,
+        AI_TIMEOUT=int(os.environ.get('PAIRAGRAPH_AI_TIMEOUT', ai_local.get('timeout', 90))),
+        STORY_API_STYLE=os.environ.get('PAIRAGRAPH_STORY_API_STYLE', ai_local.get('story_api_style', 'responses')),
+        SPEECH_PROVIDER=speech_provider,
+        TRANSCRIPTION_BASE_URL=os.environ.get('PAIRAGRAPH_TRANSCRIPTION_BASE_URL') or voice_local.get('PAIRAGRAPH_TRANSCRIPTION_BASE_URL') or speech_base,
+        SPEECH_API_KEY=os.environ.get('PAIRAGRAPH_SPEECH_API_KEY') or voice_local.get('PAIRAGRAPH_SPEECH_API_KEY') or speech_key,
+        TRANSCRIPTION_MODEL=os.environ.get('PAIRAGRAPH_TRANSCRIPTION_MODEL') or voice_local.get('PAIRAGRAPH_TRANSCRIPTION_MODEL') or ('gemini-3.8-flash' if speech_provider == 'gemini' else 'gpt-transcribe'),
+        STORY_MODEL=os.environ.get('PAIRAGRAPH_STORY_MODEL', ai_local.get('story_model', 'gpt-4o-mini')),
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
         SESSION_COOKIE_SECURE=os.environ.get('PAIRAGRAPH_HTTPS') == '1',
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
@@ -81,8 +112,8 @@ def create_app(test_config=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'same-origin'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'"
-        response.headers['Permissions-Policy'] = 'microphone=(), camera=()'
+        response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; media-src 'self' blob:; frame-ancestors 'none'; form-action 'self'"
+        response.headers['Permissions-Policy'] = ('microphone=(self), camera=()' if app.config['SPEECH_API_KEY'] else 'microphone=(), camera=()')
         response.headers['Cache-Control'] = 'no-store'
         return response
 
@@ -273,6 +304,24 @@ def create_app(test_config=None):
                 abort(400, 'This material has no readable passages.')
             chunk = retrieve(chunks, query)
             tasks = make_tasks(chunk['text'], pair['mentor_goal'], pair['buddy_goal'])
+            tasks['generation'] = 'template'
+            if request.form.get('use_ai') == 'yes':
+                context_rows = sorted(chunks, key=lambda row: keyword_score(row['text'], query), reverse=True)[:3]
+                context = [dict(chunk_id=row['id'], document_id=doc['id'], title=doc['title'], source=doc['source'],
+                                page=row['page_number'], chunk=row['chunk_number'], text=row['text']) for row in context_rows]
+                observations = {}
+                for role in ['mentor', 'buddy']:
+                    reviewed = db().execute('''SELECT confirmed_issues FROM reading_attempts
+                        WHERE institute_id=? AND learner_id=? AND reviewed=1 ORDER BY id DESC LIMIT 1''',
+                        (g.teacher['institute_id'], pair[role + '_id'])).fetchone()
+                    observations[role] = json.loads(reviewed['confirmed_issues']) if reviewed else []
+                try:
+                    tasks = generate_rag_activity(app.config['OPENAI_API_KEY'], app.config['STORY_MODEL'], context, chunk['id'],
+                        pair['mentor_goal'], pair['buddy_goal'], observations, base_url=app.config['OPENAI_BASE_URL'],
+                        timeout=app.config['AI_TIMEOUT'], api_style=app.config['STORY_API_STYLE'])
+                except ProviderError as e:
+                    tasks['generation'] = 'template-fallback'
+                    flash(f'{e} This draft uses templates, not AI. Review it before use.', 'error')
             tasks['query'] = query
             tasks['retrieval_note'] = ('Keyword match' if query and keyword_score(chunk['text'], query) else
                                        'First passage (no keyword match)' if query else 'First passage (no topic specified)')
@@ -284,7 +333,8 @@ def create_app(test_config=None):
         pairs = db().execute('''SELECT p.id, m.alias mentor, b.alias buddy FROM pairs p JOIN learners m ON m.id=p.mentor_id
             JOIN learners b ON b.id=p.buddy_id WHERE p.institute_id=?''', (g.teacher['institute_id'],)).fetchall()
         docs = db().execute('SELECT * FROM documents WHERE institute_id=? AND approved=1', (g.teacher['institute_id'],)).fetchall()
-        return render_template('new_activity.html', pairs=pairs, documents=docs, selected=request.args.get('pair', type=int))
+        return render_template('new_activity.html', pairs=pairs, documents=docs, selected=request.args.get('pair', type=int),
+                               rag_ready=bool(app.config['OPENAI_API_KEY']), rag_model=app.config['STORY_MODEL'])
 
     @app.get('/activities/<int:ident>')
     def activity(ident):
@@ -341,6 +391,9 @@ def create_app(test_config=None):
             except sqlite3.IntegrityError:
                 abort(409, 'This session has already been saved.')
             flash('Session confirmed. Separate results are saved for both learners.', 'success')
+            if db().execute('SELECT 1 FROM reading_attempts WHERE activity_id=? AND institute_id=?',
+                            (ident, g.teacher['institute_id'])).fetchone():
+                return redirect(url_for('reading_feedback', ident=ident))
             return redirect(url_for('progress'))
         return render_template('evaluate.html', activity=act)
 
@@ -359,11 +412,19 @@ def create_app(test_config=None):
                 sum(CASE WHEN r.rating='Demonstrated' THEN 1 ELSE 0 END) demonstrated FROM results r
                 JOIN sessions s ON s.id=r.session_id WHERE r.learner_id=? AND s.institute_id=? GROUP BY r.goal''',
                 (learner['id'], g.teacher['institute_id'])).fetchall()
-        return render_template('progress.html', learners=learners, learner=learner, history=history, totals=totals)
+        readings = []
+        if learner:
+            readings = db().execute('''SELECT r.*, d.title FROM reading_attempts r JOIN activities a ON a.id=r.activity_id
+                JOIN chunks c ON c.id=a.chunk_id JOIN documents d ON d.id=c.document_id
+                WHERE r.learner_id=? AND r.institute_id=? ORDER BY r.id DESC''', (learner['id'], g.teacher['institute_id'])).fetchall()
+        return render_template('progress.html', learners=learners, learner=learner, history=history, totals=totals, readings=readings)
+
+    register_voice(app, db, owned, activity_info, chunk_text)
 
     with app.app_context():
         g.app_db = app.config['DATABASE']
         db().executescript((ROOT / 'migrations' / '001_initial.sql').read_text())
+        db().executescript((ROOT / 'migrations' / '002_voice.sql').read_text())
         seed(db())
     return app
 

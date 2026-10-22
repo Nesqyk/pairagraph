@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% from '_activity_parts.html' import source %}
+{% block title %}Read aloud{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('relay',ident=activity.id) }}">← Story Relay</a>
+<div class="page-heading"><div><p class="eyebrow">LISTEN · UNDERSTAND · PRACTICE</p><h1>Read aloud</h1><p class="muted">One learner at a time. Read the shared passage exactly as shown.</p></div><span class="pill">English · Post-recording analysis</span></div>
+{% if not ai_ready %}<div class="notice" role="status"><strong>Voice AI is not connected yet.</strong> A speech-capable provider must be configured to enable recording analysis. Story-generation access alone cannot transcribe audio. Manual teacher evaluation is still available.</div>{% endif %}
+<section class="card"><div class="passage">{{ activity.source.text }}</div>{{ source(activity) }}</section>
+{% if activity.status == 'approved' and activity.stage == 0 %}
+<section class="card recording-panel"><h2>Capture this learner’s reading</h2><p>Read just the passage above. Keep the other learner quiet during the recording. Avoid saying names or other personal details.</p>
+{% if ai_ready %}<p class="hint">Speech provider: {{ 'Google Gemini' if speech_provider == 'gemini' else 'OpenAI-compatible' }} · {{ speech_model }}. Audio is sent only after you authorize and submit it.</p>{% endif %}
+<form method="post" enctype="multipart/form-data" class="stack" data-recording-form data-ai-timeout="{{ ai_timeout }}" action="{{ url_for('voice_capture',ident=activity.id) }}">{{ csrf() }}
+<label>Who is reading?<select name="role" required><option value="mentor">{{ activity.pair.mentor }} · Mentor</option><option value="buddy">{{ activity.pair.buddy }} · Buddy</option></select></label>
+<label class="check"><input type="checkbox" name="consent" value="yes" required data-audio-consent><span>I have authorization to record this learner and send their audio to the configured speech provider for transcription. I understand that the transcript and teacher-reviewed observations will be saved. This app does not retain audio; the provider’s data policies apply.</span></label>
+<div class="record-controls"><button type="button" data-record-start {% if not ai_ready %}disabled{% endif %}>● Start recording</button><button type="button" class="secondary" data-record-stop disabled>■ Stop</button><button type="button" class="secondary" data-record-discard disabled>Discard recording</button></div>
+<p class="hint" data-record-status role="status" aria-live="polite">Microphone is off. Recording stops automatically after 3 minutes.</p>
+<audio controls data-record-playback hidden aria-label="Play back this reading"></audio>
+<label>Or choose an existing audio file<input type="file" name="audio" accept=".webm,.wav,.mp3,.m4a,.mp4" data-audio-file {% if not ai_ready %}disabled{% endif %}></label>
+<p class="hint">WebM, WAV, MP3, M4A or MP4 · 5 MB maximum. Listen to the recording before sending. A transcript comparison can flag possible changed, skipped, or repeated words; it cannot grade pronunciation.</p>
+<button type="submit" data-analyze {% if not ai_ready %}disabled{% endif %}>Send audio & analyze reading →</button>
+</form></section>
+{% else %}<div class="notice">New recordings are captured during the Read step. Existing attempts remain available below.</div>{% endif %}
+<section><div class="section-heading"><h2>This pair’s reading attempts</h2><a href="{{ url_for('relay',ident=activity.id) }}">Continue relay →</a></div><div class="stack">{% for attempt in attempts %}<a class="card activity-row" href="{{ url_for('voice_review',ident=attempt.id) }}"><div><strong>{{ attempt.alias }}</strong><small>{{ attempt.created_at }} UTC</small></div><span class="badge {{ 'approved' if attempt.reviewed else 'draft' }}">{{ 'Teacher reviewed' if attempt.reviewed else 'Review suggestions' }}</span><span>→</span></a>{% else %}<div class="empty"><h3>No reading attempts yet</h3><p>Record each learner separately to keep feedback individual.</p></div>{% endfor %}</div></section>
+{% endblock %}

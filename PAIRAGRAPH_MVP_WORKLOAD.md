@@ -35,26 +35,30 @@
 
 ### P0 implementation status — 2026-10-22
 
-All ten P0 modules are implemented in the local Flask/SQLite application. See [README.md](README.md) for setup, demo credentials, and the runnable acceptance walkthrough.
+The P0 reading workflow is implemented in the local Flask/SQLite application. At the user's request, login was replaced with a single teacher workspace that opens directly. See [README.md](README.md) for setup and the runnable acceptance walkthrough.
 
 | ID | Status | Implementation / verification |
 |---|---|---|
-| C01 | Complete | Local startup applies the schema and seeds a fictional demo account; hashed passwords, login/logout, and institute-scoped access. |
+| C01 | Updated scope | Local startup applies the schema and seeds a fictional demo teacher; server-selected single-teacher workspace opens without login. Records remain institute scoped. |
 | C02 | Complete | Add/list/edit pseudonyms with role-specific learning goals; existing activities retain their original goals. |
 | C03 | Complete | Create/select mentor–buddy pairs and display the two goals side by side. |
 | C04 | Complete | Extract and preview UTF-8 TXT/text-based PDF content; explicit teacher approval; reject unreadable scans and unsupported uploads. |
 | C05 | Complete | Index approved text only; keyword retrieval with an explicitly labeled first-passage fallback; document/page/chunk attribution. Numeric-only pages are excluded. |
-| C06 | Complete | Deterministic goal-specific mentor vocabulary and buddy comprehension tasks plus teach-back from one passage; explicit teacher review before use; no API key. |
+| C06 | Updated | RAG generation with the configured shared model: up to three approved source chunks, separate goals, teacher-confirmed reading observations, validated source quotes, and mandatory activity approval. Goal-based templates remain the no-key/error fallback. |
 | C07 | Complete | Persisted, ordered Read → Retell → Teach-back stages on one shared activity. |
 | C08 | Complete | Teacher-entered mentor observations, buddy answers, individual ratings, notes, and mandatory confirmation. |
 | C09 | Complete | Atomic session/result saves, separate learner histories, goal-level counts, and persistence after application restart. |
-| C10 | Complete | Server-side validation, tenant authorization, CSRF, sign-in throttling, responsive styles, errors/empty states, no microphone/audio storage, and automated acceptance tests. |
+| C10 | Implemented | Server-side validation, institute scoping, CSRF, responsive styles, errors/empty states, optional authorized microphone use, no retained audio files, and automated acceptance tests. |
 
-Verification: `python -m unittest discover -s tests -v` runs 12 tests covering the complete acceptance journey, persistence after restart, institute isolation, approval gates, upload validation, page attribution, original goal preservation, malformed CSRF rejection, and duplicate/out-of-order submission protection. Use the virtual-environment command in the README on Windows.
+Verification: `python -m unittest discover -s tests -v` covers the complete acceptance journey, restart persistence, institute scoping, approval gates, upload validation, page attribution, original goal preservation, malformed CSRF rejection, and duplicate/out-of-order submission protection. Voice tests also cover consent, separate learner attempts, transcript correction, confirmation gates, provider failure, and generated-story approval. Provider responses are mocked; live voice/model accuracy is not verified. Use the virtual-environment command in the README on Windows.
 
 Browser verification: completed sign-in → material approval → activity draft/review → Read → Retell → Teach-back → evaluation → separate progress, including a page refresh. Checked the activity at 390 px phone width and progress at 1440 px desktop width. The local demo session is explicitly labeled as fictional QA data.
 
-P1 and P2 are not implemented. OCR, AI adaptation, transcription, and automated voice grading remain outside P0. Teacher assessment and deterministic templates are the implemented behavior.
+Updated product goal: **English read-aloud → speech transcription → source comparison → teacher-confirmed observations → individual guidance → targeted AI practice story → teacher approval → next session**. Filipino follows after separate language validation.
+
+RAG integration: `claude-haiku-5-5` now generates the mentor vocabulary task, buddy comprehension task, and shared teach-back from locally retrieved approved chunks. Source quotations and vocabulary are checked against retrieved text. Keyword retrieval is used; embeddings/vector search are not implemented. The RAG provider passed a live fictional-context test with three validated citations. The full suite has 25 passing tests, including rejection of unapproved context, unretrieved citations, fabricated quotes, and invented vocabulary. Model failure produces a labeled template draft.
+
+The English voice capture, transcription provider integration, possible-miscue review, coaching guidance, and targeted-story draft/review loop now have code and automated coverage. Story generation has passed a live fictional-text check through the supplied compatible gateway using `claude-haiku-5-5`. That gateway cannot transcribe speech; the separate Gemini key in `voice.env` now enables `gemini-3.8-flash` audio transcription. A live synthetic English recording was transcribed exactly, with no word differences from the synthetic reference. The suite has 30 passing tests, including Gemini routing, error handling, key isolation, and transcript validation. Learner speech accuracy has not yet been established. Audio is processed in memory; this app retains text and confirmed observations, not recordings. Transcript comparison does not assess pronunciation, phonemes, pace, or prosody. OCR, dedicated pronunciation/fluency assessment, Filipino validation, and P2 remain deferred.
 
 ## 2. MVP Important Features — P1 (Only After P0)
 

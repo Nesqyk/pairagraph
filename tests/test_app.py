@@ -3,6 +3,7 @@ import re
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from pypdf import PdfWriter
@@ -42,7 +43,7 @@ class PairagraphTest(unittest.TestCase):
         self.temp.cleanup()
 
     def sql(self, statement, params=()):
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             conn.row_factory = sqlite3.Row
             return conn.execute(statement, params).fetchall()
 
@@ -52,7 +53,10 @@ class PairagraphTest(unittest.TestCase):
             token = session['csrf']
         payload = dict(data or {})
         payload['csrf'] = token
-        return self.client.post(path, data=payload, follow_redirects=follow)
+        response = self.client.post(path, data=payload, follow_redirects=follow)
+        response.get_data()
+        response.close()
+        return response
 
     def login(self, email='teacher@pairagraph.local', password='PairagraphDemo!2026'):
         response = self.post('/login', {'email': email, 'password': password})
@@ -151,6 +155,14 @@ class PairagraphTest(unittest.TestCase):
         self.assertEqual(self.post(f'/activities/{ident}/approve').status_code, 400)
         self.assertEqual(self.client.get(f'/activities/{ident}/evaluate').status_code, 409)
 
+    def test_non_ascii_csrf_is_rejected_without_server_error(self):
+        self.login()
+        response = self.client.post('/learners', data={
+            'csrf': '\u2603', 'alias': 'Willow', 'role': 'mentor', 'goal': GOALS['mentor'][0],
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(len(self.sql('SELECT * FROM learners')), 2)
+
     def test_relay_order_duplicate_submission_and_confirmation(self):
         ident = self.draft()
         self.post(f'/activities/{ident}/approve', {'confirm': 'yes'})
@@ -178,7 +190,7 @@ class PairagraphTest(unittest.TestCase):
     def test_tenant_boundaries_on_reads_and_writes(self):
         ident = self.ready()
         self.post(f'/activities/{ident}/evaluate', self.evaluation())
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             conn.execute("INSERT INTO institutes VALUES (2,'Other institute')")
             conn.execute("INSERT INTO teachers(institute_id,email,password_hash,name) VALUES (2,'other@local',?,'Other')", (self.other_hash,))
             conn.execute("INSERT INTO learners(institute_id,alias,role,goal) VALUES (2,'OtherBuddy','buddy',?)", (GOALS['buddy'][0],))
@@ -246,6 +258,29 @@ class PairagraphTest(unittest.TestCase):
                     self.assertIn(word, 'the remarkable sunflower grew carefully beside the garden.')
         self.assertEqual(len(mentor_tasks), 3)
         self.assertEqual(len(buddy_tasks), 3)
+
+    def test_non_reading_pdf_pages_are_not_retrieved(self):
+        self.login()
+        writer = PdfWriter()
+        from pypdf import PdfReader
+        for text in ['12345 ---', 'A remarkable sunflower grew in the garden.']:
+            writer.add_page(PdfReader(io.BytesIO(pdf_bytes(text))).pages[0])
+        raw = io.BytesIO()
+        writer.write(raw)
+        response = self.post('/library', {
+            'title': 'Numbered cover', 'source': 'Original test fixture',
+            'file': (io.BytesIO(raw.getvalue()), 'numbered.pdf'),
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'It will not be used in activities', response.data)
+        doc = self.sql('SELECT max(id) id FROM documents')[0]['id']
+        self.assertEqual(self.post(f'/library/{doc}/approve', {'confirm': 'yes'}).status_code, 200)
+        chunks = self.sql('SELECT * FROM chunks WHERE document_id=?', (doc,))
+        self.assertEqual([chunk['page_number'] for chunk in chunks], [2])
+        response = self.post('/activities/new', {'pair_id': 1, 'document_id': doc, 'query': ''})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Page 2', response.data)
+        self.assertIn(b'A remarkable sunflower grew in the garden.', response.data)
 
 
 if __name__ == '__main__':

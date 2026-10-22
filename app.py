@@ -73,7 +73,7 @@ def create_app(test_config=None):
             session['csrf'] = secrets.token_hex(32)
         if request.method == 'POST':
             token = request.form.get('csrf', '')
-            if not secrets.compare_digest(token, session['csrf']):
+            if not secrets.compare_digest(token.encode('utf-8'), session['csrf'].encode('utf-8')):
                 abort(400, 'Your form expired. Refresh the page and try again.')
 
     @app.after_request
@@ -277,7 +277,8 @@ def create_app(test_config=None):
     @login_required
     def document(ident):
         doc = owned('documents', ident)
-        pages = db().execute('SELECT * FROM pages WHERE document_id=? ORDER BY page_number', (ident,)).fetchall()
+        pages = [dict(page, readable=has_readable_text(page['text'])) for page in
+                 db().execute('SELECT * FROM pages WHERE document_id=? ORDER BY page_number', (ident,)).fetchall()]
         return render_template('document.html', doc=doc, pages=pages)
 
     @app.post('/library/<int:ident>/approve')
@@ -294,7 +295,11 @@ def create_app(test_config=None):
                 if changed:
                     pages = db().execute('SELECT * FROM pages WHERE document_id=? ORDER BY page_number', (ident,)).fetchall()
                     for page in pages:
+                        if not has_readable_text(page['text']):
+                            continue
                         for n, passage in enumerate(chunk_text(page['text']), 1):
+                            if not has_readable_text(passage):
+                                continue
                             db().execute('INSERT INTO chunks(document_id,page_number,chunk_number,text) VALUES (?,?,?,?)',
                                          (ident, page['page_number'], n, passage))
         flash('Material approved and indexed for activities.', 'success')
@@ -415,6 +420,10 @@ def create_app(test_config=None):
     return app
 
 
+def has_readable_text(text):
+    return bool(re.search(r'[^\W\d_]', text, re.UNICODE))
+
+
 def extract_pages(raw, filename):
     if filename.lower().endswith('.txt'):
         try:
@@ -447,7 +456,7 @@ def extract_pages(raw, filename):
         abort(400, 'Only TXT and text-based PDF files are supported.')
     if sum(len(t) for _, t in pages) > 500_000:
         abort(400, 'Use a shorter document (up to 500,000 extracted characters).')
-    if not any(re.search(r'[^\W\d_]', text, re.UNICODE) for _, text in pages):
+    if not any(has_readable_text(text) for _, text in pages):
         abort(400, 'No readable text was found. Scanned PDFs need OCR first; upload a text-based PDF or TXT instead.')
     return pages
 

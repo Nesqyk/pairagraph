@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f8f7f1"><title>{% block title %}Your reading room{% endblock %} · Pairagraph</title><link rel="stylesheet" href="{{ url_for('static',filename='student.css',v='stop-bottom-1') }}"><script src="{{ url_for('static',filename='student.js',v='stop-bottom-1') }}" defer></script></head>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f8f7f1"><title>{% block title %}Your reading room{% endblock %} · Pairagraph</title><link rel="stylesheet" href="{{ url_for('static',filename='student.css',v='results-spinner-2') }}"><script src="{{ url_for('static',filename='student.js',v='results-spinner-2') }}" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 {% macro csrf() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
 {% macro icon(name,cls='') %}<svg class="icon {{ cls }}" aria-hidden="true"><use href="#i-{{ name }}"></use></svg>{% endmacro %}

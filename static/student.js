@@ -36,6 +36,7 @@ if (panel) {
     panel.classList.remove('is-recording');
   }
   function clearPlayback() {
+    panel.classList.remove('has-recording');
     blob = null;
     playback.pause();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -98,6 +99,7 @@ if (panel) {
         submit.disabled = false;
         submit.hidden = false;
         discard.hidden = true;
+        panel.classList.add('has-recording');
         label.textContent = 'YOUR READING IS READY';
         status.textContent = 'Nice work! Press See how I did.';
       });
@@ -113,7 +115,7 @@ if (panel) {
       panel.classList.add('is-recording');
       start.hidden = true;
       stop.hidden = false;
-      discard.hidden = false;
+      discard.hidden = true;
       submit.disabled = true;
       submit.hidden = true;
       label.textContent = 'LISTENING TO YOUR READING';
@@ -141,6 +143,9 @@ if (panel) {
     release();
     [start, stop, discard, submit, consent].forEach((control) => control.disabled = true);
     overlay.hidden = false;
+    const submitLabel = submit.innerHTML;
+    submit.innerHTML = '<span class="result-button-spinner" aria-hidden="true"></span> Loading results…';
+    overlay.focus({preventScroll: true});
     panel.setAttribute('aria-busy', 'true');
     try {
       const response = await fetch(panel.dataset.submit, {method: 'POST', body: data});
@@ -151,11 +156,13 @@ if (panel) {
       status.textContent = 'The connection was interrupted. Check My progress before trying again; your reading may already be saved.';
     }
     overlay.hidden = true;
+    submit.innerHTML = submitLabel;
     panel.removeAttribute('aria-busy');
     busy = false;
     [discard, consent].forEach((control) => control.disabled = false);
     start.disabled = !ready;
     submit.disabled = !blob;
+    submit.focus({preventScroll: true});
   }
   submit.addEventListener('click', send);
   window.addEventListener('pagehide', () => { version += 1; canceled = true; stopRecording(); clearPlayback(); });

@@ -172,3 +172,20 @@ body:has(.simple-hero) .student-footer{position:absolute;bottom:0;left:0;right:0
 .reading-flow.story-focused.story-visible .record-card [data-stop]{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:8;flex:none;width:180px;min-height:56px;margin:0;box-shadow:0 6px 24px #263e3430;font-size:18px}
 body:has(.story-focused .is-recording) .student-main{padding-bottom:110px}
 @media(max-width:580px){.reading-flow.story-focused.story-visible .record-card [data-stop]{bottom:calc(16px + env(safe-area-inset-bottom,0px));width:180px}}
+
+/* After Stop, offer two distinct next steps in the same bottom position. */
+.record-actions{display:flex;align-items:center;justify-content:center;gap:12px}
+.reading-flow.story-focused.story-visible .record-actions{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);padding:12px;background:#fffefbf5;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 24px #263e3420;z-index:8}
+.reading-flow.story-focused.story-visible .record-actions .button{position:static;transform:none;margin:0;min-width:0;width:180px;min-height:56px;box-shadow:none;font-size:17px;flex:1 1 0}
+.reading-flow.story-focused .has-recording [data-start]{background:#f6e3d3;color:#704323;border-color:#d9b392}
+.reading-flow.story-focused .has-recording [data-start]:hover{background:#efd0b8}
+.reading-flow.story-focused .has-recording button[data-submit]{background:var(--green);color:#fff}
+.reading-flow.story-focused .has-recording button[data-submit]:hover{background:#224531}
+body:has(.story-focused.story-visible) .student-main{padding-bottom:130px}
+@media(max-width:580px){.reading-flow.story-focused.story-visible .record-actions{gap:8px;padding:10px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}.reading-flow.story-focused.story-visible .record-actions .button{font-size:15px;padding:12px;min-height:54px}}
+
+/* Cover the reading controls throughout upload and result processing. */
+.processing-overlay{z-index:1000;background:#f8f7f1f5}
+.processing-overlay:focus{outline:none}
+.processing-overlay .spinner{width:84px;height:84px;border-width:7px;border-color:#dce5d3;border-top-color:#315744;border-right-color:#315744}
+.result-button-spinner{display:inline-block;flex-shrink:0;width:22px;height:22px;border:3px solid #ffffff60;border-top-color:#fff;border-radius:50%;animation:spin .9s linear infinite}

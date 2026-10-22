@@ -1,12 +1,12 @@
 {% extends 'student/base.html' %}{% block title %}Next story{% endblock %}{% block content %}
 <section class="next-simple" aria-labelledby="next-title">
-<div class="next-welcome"><span class="next-success">{{ icon('check') }} Reading complete</span><h1 id="next-title">Ready for another story?</h1><p>Take your time. A new adventure is waiting.</p></div>
+<div class="next-welcome"><h1 id="next-title">Ready for another story?</h1><p>Take your time. A new adventure is waiting.</p></div>
 <article class="next-pick">
 <img class="next-garden" src="{{ url_for('static',filename='student-garden.svg') }}" alt="">
 <div class="next-pick-content"><span class="eyebrow">{{ 'YOUR PRACTICE STORY' if reading.draft or has_issues else 'YOUR NEXT STORY' }}</span><h2>{{ chosen.title }}</h2>
 <p>{{ 'Read it again and see how you do!' if reading.next_kind=='reread' else 'Let’s find out what happens.' }}</p>
 <form action="{{ url_for('student_start') }}" method="post">{{ csrf() }}<input type="hidden" name="learner_id" value="{{ learner.id }}"><input type="hidden" name="chunk_id" value="{{ chosen.id }}"><button class="button primary full">{{ icon('book') }} Read this story {{ icon('arrow') }}</button></form>
-<details class="next-preview"><summary>Take a peek at the story</summary><p>{{ chosen.text[:340] }}{% if chosen.text|length>340 %}…{% endif %}</p><small>{{ chosen.source }} · Page {{ chosen.page_number }}</small></details>
+
 {% if has_issues and not reading.draft and story_ready %}<form action="{{ url_for('student_next',ident=reading.id) }}" method="post" class="next-create" data-generate-form>{{ csrf() }}<input type="hidden" name="consent" value="yes"><button class="button secondary full">{{ icon('spark') }} Make a story for me</button><p role="status" data-generation-status>We’ll use your practice words.</p></form>{% endif %}
 </div></article>
 <nav class="next-links" aria-label="After reading"><a href="{{ url_for('student_analysis',ident=reading.id) }}">← My reading</a><a href="{{ url_for('student_home') }}">Take a break {{ icon('home') }}</a></nav>

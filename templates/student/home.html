@@ -1,19 +1,21 @@
 {% extends 'student/base.html' %}{% block title %}Start reading{% endblock %}
 {% block content %}
-<section class="simple-hero">
-<div class="hero-designs" aria-hidden="true">
-<span class="hero-design design-book">{{ icon('book') }}</span>
-<span class="hero-design design-leaf">{{ icon('leaf') }}</span>
-<span class="hero-design design-spark">{{ icon('spark') }}</span>
-<span class="hero-design design-mic">{{ icon('mic') }}</span>
-</div>
-
-<h1>Let’s read!</h1>
-<p>Read a story out loud.</p>
-<form method="post" action="{{ url_for('student_start') }}">{{ csrf() }}
-<input type="hidden" name="learner_id" value="{{ learner.id if learner else '' }}">
-<button class="button primary large" {% if not learner or not featured %}disabled{% endif %}>{{ icon('book') }} Start Reading {{ icon('arrow') }}</button>
-</form>
-
+<section class="reading-room" aria-labelledby="room-title">
+  <div class="room-copy">
+    <p class="room-greeting">Hello, {{ learner.alias if learner else 'reader' }}.</p>
+    <h1 id="room-title">Little stories.<br><span>Big discoveries.</span></h1>
+    <p class="room-description">Open a story. Read it out loud.<br>See where your voice takes you.</p>
+    <form method="post" action="{{ url_for('student_start') }}">{{ csrf() }}
+      <input type="hidden" name="learner_id" value="{{ learner.id if learner else '' }}">
+      <button class="button primary large room-start" {% if not learner or not featured %}disabled{% endif %}>Start Reading {{ icon('arrow') }}</button>
+    </form>
+  </div>
+  <div class="book-world">
+    <div class="world-stage" data-book-world aria-hidden="true"><img class="world-fallback" src="{{ url_for('static',filename='student-garden.svg') }}" fetchpriority="high" alt=""></div>
+    <button class="motion-toggle" type="button" data-motion-toggle aria-pressed="false" hidden>Pause animation</button>
+    {% if featured %}<div class="world-caption"><span>A story for you</span><strong>{{ featured.title }}</strong>{{ icon('book') }}</div>{% endif %}
+  </div>
 </section>
+<div class="room-bottom"><span>{{ icon('book') }} A little reading goes a long way.</span><a href="{{ url_for('student_progress') }}">Your reading journey {{ icon('arrow') }}</a></div>
+<script type="module" src="{{ url_for('static',filename='book-world.js',v='1') }}"></script>
 {% endblock %}

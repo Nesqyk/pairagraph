@@ -9,12 +9,18 @@ document.querySelector('[data-text-size]')?.addEventListener('click', (event) =>
 
 const panel = document.querySelector('[data-student-recorder]');
 if (panel) {
+  const flow = document.querySelector('[data-reading-flow]');
+  function showStory() {
+    flow.classList.add('story-visible');
+    const story = document.querySelector('[data-reading-story]');
+    story.hidden = false;
+    story.focus({preventScroll: true});
+    window.scrollTo(0, 0);
+  }
   const start = panel.querySelector('[data-start]');
   const stop = panel.querySelector('[data-stop]');
   const discard = panel.querySelector('[data-discard]');
   const submit = panel.querySelector('[data-submit]');
-  const manualSubmit = panel.querySelector('[data-manual-submit]');
-  const manual = panel.querySelector('[data-manual]');
   const consent = panel.querySelector('[data-consent]');
   const playback = panel.querySelector('[data-playback]');
   const status = panel.querySelector('[data-record-status]');
@@ -49,9 +55,10 @@ if (panel) {
     stop.hidden = true;
     discard.hidden = true;
     submit.disabled = true;
+    submit.hidden = true;
     timer.innerHTML = '00:00 <span>/ 03:00</span>';
     label.textContent = 'YOUR MICROPHONE IS OFF';
-    status.textContent = 'Recording cleared. Take a breath and try again when you’re ready.';
+    status.textContent = 'Ready to try again?';
   }
   function stopRecording() {
     if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -60,8 +67,8 @@ if (panel) {
     label.textContent = 'YOUR MICROPHONE IS OFF';
   }
   start.addEventListener('click', async () => {
-    if (!consent.checked) { status.textContent = 'Confirm that you agree to recording first.'; consent.focus(); return; }
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { status.textContent = 'Recording needs a supported browser on localhost or HTTPS. You can use a manual transcript instead.'; return; }
+    if (!consent.checked) { status.textContent = 'Tick the box before you record.'; consent.focus(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { status.textContent = 'Recording is not available in this browser. Ask a grown-up to help.'; return; }
     start.disabled = true;
     const currentVersion = ++version;
     try {
@@ -69,7 +76,7 @@ if (panel) {
       if (currentVersion !== version || !consent.checked) { acquired.getTracks().forEach((track) => track.stop()); return; }
       stream = acquired;
       const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((mime) => MediaRecorder.isTypeSupported(mime));
-      if (!type) throw new Error('This browser does not support a compatible recording format. Try a manual transcript instead.');
+      if (!type) throw new Error('This browser cannot record your voice. Ask a grown-up to help.');
       clearPlayback();
       chunks = [];
       canceled = false;
@@ -87,13 +94,16 @@ if (panel) {
         discard.hidden = false;
         start.hidden = false;
         start.disabled = false;
-        start.textContent = 'Record another take';
+        start.textContent = 'Record again';
         submit.disabled = false;
+        submit.hidden = false;
+        discard.hidden = true;
         label.textContent = 'YOUR READING IS READY';
-        status.textContent = 'Nice work. Listen back, then submit your reading when you’re ready.';
+        status.textContent = 'Nice work! Press See how I did.';
       });
       recorder.addEventListener('error', () => { reset(); status.textContent = 'Recording was interrupted. Your microphone is off. You can try again.'; });
       recorder.start();
+      showStory();
       recordingStarted = Date.now();
       interval = setInterval(() => {
         const elapsed = Math.min(180, Math.floor((Date.now() - recordingStarted) / 1000));
@@ -105,36 +115,33 @@ if (panel) {
       stop.hidden = false;
       discard.hidden = false;
       submit.disabled = true;
+      submit.hidden = true;
       label.textContent = 'LISTENING TO YOUR READING';
-      status.textContent = 'Recording… read at your own pace. Press stop when you finish.';
+      status.textContent = 'Read out loud. Press Stop when you’re done.';
     } catch (error) {
       if (currentVersion !== version) return;
       release();
       start.disabled = !ready;
-      status.textContent = error.name === 'NotAllowedError' ? 'Microphone access was denied. Allow it in your browser, or enter a manual transcript instead.' : error.message;
+      status.textContent = error.name === 'NotAllowedError' ? 'Your microphone is blocked. Ask a grown-up to help turn it on.' : error.message;
     }
   });
   stop.addEventListener('click', stopRecording);
   discard.addEventListener('click', reset);
   consent.addEventListener('change', () => { if (!consent.checked && !busy) reset(); });
-  async function send(manualMode) {
+  async function send() {
     if (busy) return;
-    if (recorder?.state === 'recording') { status.textContent = 'Stop your recording before submitting.'; return; }
-    if (!consent.checked) { status.textContent = 'Confirm that you agree to processing this reading first.'; consent.focus(); return; }
-    if (manualMode ? !manual.value.trim() : !blob) { status.textContent = manualMode ? 'Enter the words that were actually read.' : 'Record a reading first.'; return; }
+    if (recorder?.state === 'recording') { status.textContent = 'Press Stop on your recording first.'; return; }
+    if (!consent.checked) { status.textContent = 'Tick the box so we can save your words.'; consent.focus(); return; }
+    if (!blob) { status.textContent = 'Record a reading first.'; return; }
     const data = new FormData();
     data.set('csrf', panel.querySelector('[name="csrf"]').value);
     data.set('consent', 'yes');
-    if (manualMode) data.set('transcript', manual.value.trim());
-    else data.set('audio', blob, blob.type.includes('mp4') ? 'reading.mp4' : 'reading.webm');
+    data.set('audio', blob, blob.type.includes('mp4') ? 'reading.mp4' : 'reading.webm');
     busy = true;
     release();
-    [start, stop, discard, submit, manualSubmit, consent].forEach((control) => control.disabled = true);
+    [start, stop, discard, submit, consent].forEach((control) => control.disabled = true);
     overlay.hidden = false;
-    if (manualMode) {
-      overlay.querySelector('h2').textContent = 'Looking at your reading…';
-      overlay.querySelector('p').textContent = 'Comparing your manual transcript with the story.';
-    }
+    panel.setAttribute('aria-busy', 'true');
     try {
       const response = await fetch(panel.dataset.submit, {method: 'POST', body: data});
       const result = await response.json();
@@ -144,16 +151,16 @@ if (panel) {
       status.textContent = 'The connection was interrupted. Check My progress before trying again; your reading may already be saved.';
     }
     overlay.hidden = true;
+    panel.removeAttribute('aria-busy');
     busy = false;
-    [discard, manualSubmit, consent].forEach((control) => control.disabled = false);
+    [discard, consent].forEach((control) => control.disabled = false);
     start.disabled = !ready;
     submit.disabled = !blob;
   }
-  submit.addEventListener('click', () => send(false));
-  manualSubmit.addEventListener('click', () => send(true));
+  submit.addEventListener('click', send);
   window.addEventListener('pagehide', () => { version += 1; canceled = true; stopRecording(); clearPlayback(); });
 }
 document.querySelector('[data-generate-form]')?.addEventListener('submit', (event) => {
   event.currentTarget.querySelector('button').disabled = true;
-  event.currentTarget.querySelector('[data-generation-status]').textContent = 'Creating a new practice story… this can take a few minutes. Your next story will be ready to read when it finishes.';
+  event.currentTarget.querySelector('[data-generation-status]').textContent = 'Making your next story… This may take a few minutes.';
 });

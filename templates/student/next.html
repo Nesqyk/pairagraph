@@ -1,13 +1,14 @@
-{% extends 'student/base.html' %}{% block title %}Your next chapter{% endblock %}{% block content %}
-{% set stage=3 %}{% include 'student/_steps.html' %}
-<div class="page-title"><div><span class="eyebrow">THERE’S ALWAYS ANOTHER CHAPTER</span><h1>{{ 'A story to help you grow.' if has_issues else 'A new little adventure.' }}</h1><p>{{ 'A little familiar, a little new. Let’s make those tricky words feel easier.' if has_issues else 'No word differences were detected, so here’s a surprise from your reading library.' }}</p></div><span class="small-pill">{{ icon('spark') }} {{ 'Focused practice' if has_issues else 'Picked for discovery' }}</span></div>
-<div class="next-layout"><div class="next-illustration"><img src="{{ url_for('static',filename='student-garden.svg') }}" alt="A garden sprouting from the pages of an open book"><div><span class="eyebrow">YOUR NEXT LITTLE ADVENTURE</span><h2>Keep turning<br>the page.</h2><p>Every story gives your reading<br>a little more room to grow.</p></div></div><section class="next-story-card">
-<span class="story-badge">{{ 'AI practice story · Made for your next step' if reading.draft else 'A passage for focused practice' if reading.next_kind=='targeted' else 'Read it once more' if reading.next_kind=='reread' else 'A surprise from your library' }}</span><h2>{{ chosen.title }}</h2>
-<p>{{ reading.draft.rationale if reading.draft else 'This passage includes words to revisit from your last reading.' if reading.next_kind=='targeted' else 'A second reading is a chance to find your rhythm and feel more comfortable.' if reading.next_kind=='reread' else 'A fresh page, a new possibility. Settle in and see where this story takes you.' }}</p>
-{% if reading.draft %}<div class="word-chips">{% for word in reading.draft.targets %}<span>{{ word }}</span>{% endfor %}</div>{% endif %}
-<div class="story-excerpt">{{ chosen.text[:340] }}{% if chosen.text|length>340 %}…{% endif %}</div>
-<details class="fine-print"><summary>About this story</summary><p>{{ chosen.source }} · Page {{ chosen.page_number }} · Passage {{ chosen.chunk_number }}</p></details>
-<form action="{{ url_for('student_start') }}" method="post">{{ csrf() }}<input type="hidden" name="learner_id" value="{{ learner.id }}"><input type="hidden" name="chunk_id" value="{{ chosen.id }}"><button class="button primary full">Start this story {{ icon('arrow') }}</button></form>
-{% if has_issues and not reading.draft %}<div class="generate-panel"><h3>A story made for your practice</h3><p>Create a new story around possible tricky words, or keep reading the library passage above.</p>{% if story_ready %}<form action="{{ url_for('student_next',ident=reading.id) }}" method="post" class="stack" data-generate-form>{{ csrf() }}<input type="hidden" name="consent" value="yes"><button class="button secondary full">{{ icon('spark') }} Create my practice story</button><p class="fine-print" role="status" data-generation-status>Uses the story and possible reading differences. No recording is sent.</p></form>{% else %}<p class="fine-print">Story generation is unavailable right now. You can keep practicing with the library story.</p>{% endif %}</div>{% endif %}
-</section></div><div class="bottom-action"><a href="{{ url_for('student_analysis',ident=reading.id) }}" class="text-link">← Back to my reflection</a><a href="{{ url_for('student_progress') }}" class="text-link">See my progress →</a></div>
+{% extends 'student/base.html' %}{% block title %}Next story{% endblock %}{% block content %}
+<section class="next-simple" aria-labelledby="next-title">
+<div class="next-welcome"><span class="next-success">{{ icon('check') }} Reading complete</span><h1 id="next-title">Ready for another story?</h1><p>Take your time. A new adventure is waiting.</p></div>
+<article class="next-pick">
+<img class="next-garden" src="{{ url_for('static',filename='student-garden.svg') }}" alt="">
+<div class="next-pick-content"><span class="eyebrow">{{ 'YOUR PRACTICE STORY' if reading.draft or has_issues else 'YOUR NEXT STORY' }}</span><h2>{{ chosen.title }}</h2>
+<p>{{ 'Read it again and see how you do!' if reading.next_kind=='reread' else 'Let’s find out what happens.' }}</p>
+<form action="{{ url_for('student_start') }}" method="post">{{ csrf() }}<input type="hidden" name="learner_id" value="{{ learner.id }}"><input type="hidden" name="chunk_id" value="{{ chosen.id }}"><button class="button primary full">{{ icon('book') }} Read this story {{ icon('arrow') }}</button></form>
+<details class="next-preview"><summary>Take a peek at the story</summary><p>{{ chosen.text[:340] }}{% if chosen.text|length>340 %}…{% endif %}</p><small>{{ chosen.source }} · Page {{ chosen.page_number }}</small></details>
+{% if has_issues and not reading.draft and story_ready %}<form action="{{ url_for('student_next',ident=reading.id) }}" method="post" class="next-create" data-generate-form>{{ csrf() }}<input type="hidden" name="consent" value="yes"><button class="button secondary full">{{ icon('spark') }} Make a story for me</button><p role="status" data-generation-status>We’ll use your practice words.</p></form>{% endif %}
+</div></article>
+<nav class="next-links" aria-label="After reading"><a href="{{ url_for('student_analysis',ident=reading.id) }}">← My reading</a><a href="{{ url_for('student_home') }}">Take a break {{ icon('home') }}</a></nav>
+</section>
 {% endblock %}

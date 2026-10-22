@@ -10,3 +10,10 @@ voice.env
 .env
 .env.*
 !.env.example
+
+# Local demo capture files; keep the finished presentation and video.
+output/*.log
+output/pairagraph-demo/frames/
+output/pairagraph-demo/video-browser/
+output/pairagraph-demo/*.sqlite3*
+output/pairagraph-demo/*.log

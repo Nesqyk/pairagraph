@@ -1,0 +1,23 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1440
+PlayResY: 900
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Segoe UI,26,&H00FFFFFF,&H00FFFFFF,&H00343E26,&H00343E26,0,0,0,0,100,100,0,0,1,0,0,2,35,35,28,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,Pairagraph â€” a simple place to read, practice, and try again.
+Dialogue: 0,0:00:05.00,0:00:10.00,Default,,0,0,0,,Before reading, review the microphone prompt and give permission.
+Dialogue: 0,0:00:10.00,0:00:12.00,Default,,0,0,0,,Tick the consent box, then choose Record.
+Dialogue: 0,0:00:12.00,0:00:18.00,Default,,0,0,0,,The story appears when recording starts. Read aloud at your own pace.
+Dialogue: 0,0:00:18.00,0:00:22.00,Default,,0,0,0,,Make the text larger when needed. Stop stays at the bottom center.
+Dialogue: 0,0:00:22.00,0:00:28.00,Default,,0,0,0,,After Stop: choose peach Record again, or green See how I did.
+Dialogue: 0,0:00:28.00,0:00:31.00,Default,,0,0,0,,A spinning circle shows that your results are loading.
+Dialogue: 0,0:00:31.00,0:00:37.00,Default,,0,0,0,,Friendly feedback suggests a few practice words. The AI can mishear.
+Dialogue: 0,0:00:37.00,0:00:41.00,Default,,0,0,0,,Open Look at my reading to compare the story with what was heard.
+Dialogue: 0,0:00:41.00,0:00:47.00,Default,,0,0,0,,One clear next step: Read this story. Or take a break.
+Dialogue: 0,0:00:47.00,0:00:52.00,Default,,0,0,0,,My progress keeps saved readings and suggested words together.
+Dialogue: 0,0:00:52.00,0:00:56.00,Default,,0,0,0,,Pairagraph. Read. Practice. Try again.

@@ -20,7 +20,6 @@
   </nav>
   <div class="sidebar-bottom"><div class="privacy-note"><span class="status-dot"></span> Teacher-led, always<p>Individual goals.<br>One shared reading experience.</p></div>
     <div class="teacher"><span class="avatar">DT</span><div><strong>{{ g.teacher.name }}</strong><small>Institute {{ g.teacher.institute_id }}</small></div></div>
-    <form action="{{ url_for('logout') }}" method="post">{{ csrf() }}<button class="text-button" type="submit">Sign out →</button></form>
   </div>
 </aside>
 {% endif %}

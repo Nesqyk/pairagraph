@@ -3,6 +3,7 @@ import re
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 from pypdf import PdfWriter
@@ -42,25 +43,25 @@ class PairagraphTest(unittest.TestCase):
         self.temp.cleanup()
 
     def sql(self, statement, params=()):
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn:
             conn.row_factory = sqlite3.Row
             return conn.execute(statement, params).fetchall()
 
     def post(self, path, data=None, follow=True):
-        self.client.get('/login')  # establish a CSRF token if this is a fresh client
+        self.client.get('/')  # establish a CSRF token if this is a fresh client
         with self.client.session_transaction() as session:
             token = session['csrf']
         payload = dict(data or {})
         payload['csrf'] = token
         return self.client.post(path, data=payload, follow_redirects=follow)
 
-    def login(self, email='teacher@pairagraph.local', password='PairagraphDemo!2026'):
-        response = self.post('/login', {'email': email, 'password': password})
+    def open_workspace(self):
+        response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         return response
 
     def draft(self):
-        self.login()
+        self.open_workspace()
         self.assertEqual(self.post('/library/1/approve', {'confirm': 'yes'}).status_code, 200)
         self.assertEqual(self.post('/activities/new', {'pair_id': 1, 'document_id': 1, 'query': 'seeds'}).status_code, 200)
         return self.sql('SELECT id FROM activities ORDER BY id DESC')[0]['id']
@@ -79,7 +80,7 @@ class PairagraphTest(unittest.TestCase):
                     notes='Revisit sharing next time.', confirm='yes')
 
     def test_full_acceptance_journey_persists_after_restart(self):
-        self.login()
+        self.open_workspace()
         for alias, role in [('Cedar', 'mentor'), ('Finch', 'buddy')]:
             response = self.post('/learners', {'alias': alias, 'role': role, 'goal': GOALS[role][1]})
             self.assertEqual(response.status_code, 200)
@@ -110,10 +111,10 @@ class PairagraphTest(unittest.TestCase):
         self.assertEqual(results[0]['rating'], 'Demonstrated')
         self.assertEqual(results[1]['rating'], 'Practicing')
         self.assertEqual(results[0]['goal'], 'Use context clues')
-        # Recreate the app and sign in again against the same on-disk database.
+        # Recreate the app and open the same on-disk workspace without signing in.
         self.app = create_app({'TESTING': True, 'DATABASE': self.path, 'SECRET_KEY': 'test-secret'})
         self.client = self.app.test_client()
-        self.login()
+        self.open_workspace()
         mentor = self.client.get(f'/progress?learner={ids["mentor"]}')
         buddy = self.client.get(f'/progress?learner={ids["buddy"]}')
         self.assertIn(self.evaluation()['mentor_observations'].encode(), mentor.data)
@@ -123,27 +124,26 @@ class PairagraphTest(unittest.TestCase):
         self.assertIn(b'<strong>1</strong> confirmed sessions', mentor.data)
         self.assertIn(b'<strong>0</strong> marked demonstrated', buddy.data)
 
-    def test_all_get_screens_render_and_logout(self):
-        self.assertEqual(self.client.get('/').status_code, 302)
-        self.login()
+    def test_all_get_screens_render_without_login(self):
+        self.assertEqual(self.client.get('/').status_code, 200)
         for route in ['/', '/learners', '/learners/1/edit', '/pairs', '/library', '/library/1', '/activities/new', '/progress']:
             self.assertEqual(self.client.get(route).status_code, 200, route)
-        self.assertEqual(self.post('/logout').status_code, 200)
-        self.assertEqual(self.client.get('/learners').status_code, 302)
+        response = self.client.get('/login', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Small steps. Shared growth.', response.data)
+        self.assertNotIn(b'Sign out', response.data)
+        self.assertNotIn(b'name="password"', response.data)
+        self.client = self.app.test_client()
+        self.assertEqual(self.client.get('/learners').status_code, 200)
 
-    def test_auth_csrf_and_throttling(self):
-        self.assertEqual(self.client.post('/login', data={'email': 'x', 'password': 'x'}).status_code, 400)
-        for _ in range(10):
-            self.assertEqual(self.post('/login', {'email': 'wrong@local', 'password': 'bad'}).status_code, 401)
-        self.assertEqual(self.post('/login', {'email': 'wrong@local', 'password': 'bad'}).status_code, 429)
-        self.login()
+    def test_csrf_and_privacy_headers(self):
         self.assertEqual(self.client.post('/learners', data={'alias': 'Bad'}).status_code, 400)
         response = self.client.get('/')
         self.assertEqual(response.headers['Permissions-Policy'], 'microphone=(), camera=()')
         self.assertIn("default-src 'self'", response.headers['Content-Security-Policy'])
 
     def test_unapproved_material_and_activity_are_blocked(self):
-        self.login()
+        self.open_workspace()
         self.assertEqual(self.post('/activities/new', {'pair_id': 1, 'document_id': 1}).status_code, 400)
         self.assertEqual(self.post('/library/1/approve').status_code, 400)
         ident = self.draft()
@@ -178,11 +178,16 @@ class PairagraphTest(unittest.TestCase):
     def test_tenant_boundaries_on_reads_and_writes(self):
         ident = self.ready()
         self.post(f'/activities/{ident}/evaluate', self.evaluation())
-        with sqlite3.connect(self.path) as conn:
+        with closing(sqlite3.connect(self.path)) as conn, conn:
             conn.execute("INSERT INTO institutes VALUES (2,'Other institute')")
             conn.execute("INSERT INTO teachers(institute_id,email,password_hash,name) VALUES (2,'other@local',?,'Other')", (self.other_hash,))
             conn.execute("INSERT INTO learners(institute_id,alias,role,goal) VALUES (2,'OtherBuddy','buddy',?)", (GOALS['buddy'][0],))
-        self.login('other@local', 'OtherTeacher!2026')
+        # The teacher context is server-selected, never taken from a browser cookie.
+        other_id = self.sql("SELECT id FROM teachers WHERE email='other@local'")[0]['id']
+        with self.client.session_transaction() as browser_session:
+            browser_session['teacher_id'] = other_id
+        self.assertIn(b'Maple', self.client.get('/learners').data)
+        self.app.config['LOCAL_TEACHER_ID'] = other_id
         for path in ['/learners/1/edit', '/library/1', '/activities/1', '/activities/1/relay', '/activities/1/evaluate', '/progress?learner=1']:
             self.assertEqual(self.client.get(path).status_code, 404, path)
         for path, data in [('/learners/1/edit', {'alias': 'Hijack', 'goal': GOALS['mentor'][0]}),
@@ -197,7 +202,7 @@ class PairagraphTest(unittest.TestCase):
             self.assertNotIn(b'The Seed Library', response.data)
 
     def test_validation_and_escaping(self):
-        self.login()
+        self.open_workspace()
         self.assertEqual(self.post('/learners', {'alias': ' ', 'role': 'mentor', 'goal': GOALS['mentor'][0]}).status_code, 400)
         self.assertEqual(self.post('/learners', {'alias': 'X', 'role': 'mentor', 'goal': GOALS['buddy'][0]}).status_code, 400)
         self.assertEqual(self.post('/learners', {'alias': 'Maple', 'role': 'mentor', 'goal': GOALS['mentor'][0]}).status_code, 400)
@@ -208,7 +213,7 @@ class PairagraphTest(unittest.TestCase):
         self.assertNotIn(b'<script>alert', response.data)
 
     def test_pdf_txt_extraction_errors_and_page_attribution(self):
-        self.login()
+        self.open_workspace()
         cases = [(b'\xff\xfe', 'bad.txt', 400), (b'', 'empty.txt', 400), (b'abc', 'bad.pdf', 400),
                  (b'abc', 'bad.exe', 400), (pdf_bytes(), 'scan.pdf', 400), (b'x' * (5 * 1024 * 1024 + 1), 'large.txt', 413)]
         for raw, name, status in cases:

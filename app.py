@@ -1,7 +1,6 @@
 """Pairagraph P0: teacher-led paired reading, backed by SQLite."""
 from __future__ import annotations
 
-import functools
 import io
 import json
 import os
@@ -9,12 +8,11 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
-import time
 from datetime import timedelta
 
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from pypdf import PdfReader
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import HTTPException
 
 ROOT = Path(__file__).resolve().parent
@@ -56,6 +54,7 @@ def create_app(test_config=None):
     app.config.update(
         SECRET_KEY=os.environ.get('PAIRAGRAPH_SECRET') or keyfile.read_text(),
         DATABASE=str(instance / 'pairagraph.sqlite3'), MAX_CONTENT_LENGTH=6 * 1024 * 1024,
+        LOCAL_TEACHER_ID=1,
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
         SESSION_COOKIE_SECURE=os.environ.get('PAIRAGRAPH_HTTPS') == '1',
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
@@ -66,9 +65,10 @@ def create_app(test_config=None):
     @app.before_request
     def prepare():
         g.app_db = app.config['DATABASE']
-        g.teacher = None
-        if session.get('teacher_id'):
-            g.teacher = db().execute('SELECT * FROM teachers WHERE id=?', (session['teacher_id'],)).fetchone()
+        # This local workspace uses one server-selected teacher; no login is needed.
+        g.teacher = db().execute('SELECT * FROM teachers WHERE id=?', (app.config['LOCAL_TEACHER_ID'],)).fetchone()
+        if not g.teacher:
+            abort(503, 'The local teacher workspace is not configured.')
         if 'csrf' not in session:
             session['csrf'] = secrets.token_hex(32)
         if request.method == 'POST':
@@ -99,14 +99,6 @@ def create_app(test_config=None):
     @app.errorhandler(HTTPException)
     def error(e):
         return render_template('error.html', error=e), e.code
-
-    def login_required(fn):
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            if not g.teacher:
-                return redirect(url_for('login'))
-            return fn(*args, **kwargs)
-        return wrapper
 
     def owned(table, ident):
         # Table names are internal constants; identifiers and tenants are bound parameters.
@@ -148,43 +140,12 @@ def create_app(test_config=None):
              (activity['chunk_id'], g.teacher['institute_id'])).fetchone()
         return activity
 
-    @app.route('/login', methods=['GET', 'POST'])
+    @app.get('/login')
     def login():
-        if request.method == 'POST':
-            email = text_field('email', 254).lower()
-            password = text_field('password', 256)
-            key = email + '|' + (request.remote_addr or 'local')
-            attempt = db().execute('SELECT * FROM login_attempts WHERE key=?', (key,)).fetchone()
-            if attempt and time.time() - attempt['since'] < 300 and attempt['attempts'] >= 10:
-                abort(429, 'Too many sign-in attempts. Try again in five minutes.')
-            teacher = db().execute('SELECT * FROM teachers WHERE email=?', (email,)).fetchone()
-            # Perform a hash check for unknown accounts as well.
-            valid = check_password_hash(teacher['password_hash'] if teacher else app.config['DUMMY_HASH'], password)
-            if not teacher or not valid:
-                with db():
-                    if not attempt or time.time() - attempt['since'] >= 300:
-                        db().execute('INSERT OR REPLACE INTO login_attempts VALUES (?,1,?)', (key, time.time()))
-                    else:
-                        db().execute('UPDATE login_attempts SET attempts=attempts+1 WHERE key=?', (key,))
-                flash('Email or password is incorrect.', 'error')
-                return render_template('login.html'), 401
-            with db():
-                db().execute('DELETE FROM login_attempts WHERE key=?', (key,))
-            session.clear()
-            session['teacher_id'] = teacher['id']
-            session['csrf'] = secrets.token_hex(32)
-            session.permanent = True
-            return redirect(url_for('dashboard'))
-        return render_template('login.html')
-
-    @app.post('/logout')
-    @login_required
-    def logout():
-        session.clear()
-        return redirect(url_for('login'))
+        # Keep old bookmarks working without showing a sign-in screen.
+        return redirect(url_for('dashboard'))
 
     @app.get('/')
-    @login_required
     def dashboard():
         tenant = g.teacher['institute_id']
         counts = {table: db().execute(f'SELECT count(*) FROM {table} WHERE institute_id=?', (tenant,)).fetchone()[0]
@@ -197,7 +158,6 @@ def create_app(test_config=None):
         return render_template('dashboard.html', counts=counts, activities=activities)
 
     @app.route('/learners', methods=['GET', 'POST'])
-    @login_required
     def learners():
         if request.method == 'POST':
             alias = text_field('alias', 60)
@@ -215,7 +175,6 @@ def create_app(test_config=None):
         return render_template('learners.html', learners=rows)
 
     @app.route('/learners/<int:ident>/edit', methods=['GET', 'POST'])
-    @login_required
     def edit_learner(ident):
         learner = owned('learners', ident)
         if request.method == 'POST':
@@ -231,7 +190,6 @@ def create_app(test_config=None):
         return render_template('edit_learner.html', learner=learner)
 
     @app.route('/pairs', methods=['GET', 'POST'])
-    @login_required
     def pairs():
         if request.method == 'POST':
             mentor = owned('learners', number('mentor_id'))
@@ -250,7 +208,6 @@ def create_app(test_config=None):
         return render_template('pairs.html', pairs=rows, learners=learners)
 
     @app.route('/library', methods=['GET', 'POST'])
-    @login_required
     def library():
         if request.method == 'POST':
             title = text_field('title', 160)
@@ -274,7 +231,6 @@ def create_app(test_config=None):
         return render_template('library.html', documents=documents)
 
     @app.get('/library/<int:ident>')
-    @login_required
     def document(ident):
         doc = owned('documents', ident)
         pages = [dict(page, readable=has_readable_text(page['text'])) for page in
@@ -282,7 +238,6 @@ def create_app(test_config=None):
         return render_template('document.html', doc=doc, pages=pages)
 
     @app.post('/library/<int:ident>/approve')
-    @login_required
     def approve_document(ident):
         doc = owned('documents', ident)
         if request.form.get('confirm') != 'yes':
@@ -306,7 +261,6 @@ def create_app(test_config=None):
         return redirect(url_for('document', ident=ident))
 
     @app.route('/activities/new', methods=['GET', 'POST'])
-    @login_required
     def new_activity():
         if request.method == 'POST':
             pair = pair_info(number('pair_id'))
@@ -333,12 +287,10 @@ def create_app(test_config=None):
         return render_template('new_activity.html', pairs=pairs, documents=docs, selected=request.args.get('pair', type=int))
 
     @app.get('/activities/<int:ident>')
-    @login_required
     def activity(ident):
         return render_template('activity.html', activity=activity_info(ident))
 
     @app.post('/activities/<int:ident>/approve')
-    @login_required
     def approve_activity(ident):
         owned('activities', ident)
         if request.form.get('confirm') != 'yes':
@@ -348,7 +300,6 @@ def create_app(test_config=None):
         return redirect(url_for('relay', ident=ident))
 
     @app.route('/activities/<int:ident>/relay', methods=['GET', 'POST'])
-    @login_required
     def relay(ident):
         act = activity_info(ident)
         if act['status'] == 'draft':
@@ -367,7 +318,6 @@ def create_app(test_config=None):
         return render_template('relay.html', activity=act)
 
     @app.route('/activities/<int:ident>/evaluate', methods=['GET', 'POST'])
-    @login_required
     def evaluate(ident):
         act = activity_info(ident)
         if act['status'] != 'approved' or act['stage'] != 3:
@@ -395,7 +345,6 @@ def create_app(test_config=None):
         return render_template('evaluate.html', activity=act)
 
     @app.get('/progress')
-    @login_required
     def progress():
         learners = db().execute('SELECT * FROM learners WHERE institute_id=? ORDER BY alias', (g.teacher['institute_id'],)).fetchall()
         selected = request.args.get('learner', type=int)
@@ -412,7 +361,6 @@ def create_app(test_config=None):
                 (learner['id'], g.teacher['institute_id'])).fetchall()
         return render_template('progress.html', learners=learners, learner=learner, history=history, totals=totals)
 
-    app.config['DUMMY_HASH'] = generate_password_hash(secrets.token_hex(16))
     with app.app_context():
         g.app_db = app.config['DATABASE']
         db().executescript((ROOT / 'migrations' / '001_initial.sql').read_text())

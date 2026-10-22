@@ -16,7 +16,7 @@ class RagTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = str(Path(self.temp.name) / 'rag.sqlite3')
-        self.app = create_app({'TESTING': True, 'DATABASE': self.path, 'SECRET_KEY': 'rag-test',
+        self.app = create_app({'TESTING': True, 'STUDENT_BUILTINS': False, 'DATABASE': self.path, 'SECRET_KEY': 'rag-test',
             'OPENAI_API_KEY': 'fake-rag-key', 'SPEECH_API_KEY': '', 'STORY_MODEL': 'claude-haiku-5-5',
             'STORY_API_STYLE': 'chat_completions', 'OPENAI_BASE_URL': 'http://gateway.invalid/api', 'AI_TIMEOUT': 300})
         self.client = self.app.test_client()

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% from '_activity_parts.html' import source %}
+{% block title %}Session summary{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('progress') }}">← Learner progress</a>
+<div class="page-heading"><div><p class="eyebrow">CONFIRMED SESSION {{ saved.id }}</p><h1>One story. Two next steps.</h1><p class="muted">{{ activity.source.title }} · {{ saved.created_at }} UTC<br>Confirmed by {{ teacher.name }}</p></div><span class="badge approved">Teacher-confirmed</span></div>
+<div class="task-grid">{% for result in results %}<section class="card"><p class="role-label">{{ result.role|upper }} · {{ result.alias }}</p><h2>{{ result.goal }}</h2><p class="badge">{{ result.rating }}</p><h3>Practiced skills</h3><p>{{ 'Vocabulary explanation and teaching' if result.role == 'mentor' else 'Reading comprehension and retelling' }} · Read, Retell, Teach-back</p><p>{{ activity.tasks[result.role] }}</p><h3>Teacher observations</h3><p class="evidence">{{ result.evidence }}</p><a href="{{ url_for('progress',learner=result.learner_id) }}">{{ result.alias }}’s history →</a></section>{% endfor %}</div>
+<section class="card"><h2>Shared teach-back</h2><p>{{ activity.tasks.teach_back }}</p>{% if saved.notes %}<h3>Session notes</h3><p class="evidence">{{ saved.notes }}</p>{% endif %}{{ source(activity) }}<details><summary>Original shared passage</summary><div class="passage">{{ activity.source.text }}</div></details></section>
+<div class="actions summary-actions"><a class="button" href="{{ url_for('recommendations',ident=activity.pair_id) }}">Plan the next session →</a><a class="button secondary" href="{{ url_for('activity',ident=activity.id) }}">View activity</a></div>
+{% endblock %}

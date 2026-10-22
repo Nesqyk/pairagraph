@@ -16,7 +16,7 @@ class VoiceTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = str(Path(self.temp.name) / 'voice.sqlite3')
-        self.app = create_app({'TESTING': True, 'DATABASE': self.path, 'SECRET_KEY': 'voice-test', 'OPENAI_API_KEY': 'test-key-not-real',
+        self.app = create_app({'TESTING': True, 'STUDENT_BUILTINS': False, 'DATABASE': self.path, 'SECRET_KEY': 'voice-test', 'OPENAI_API_KEY': 'test-key-not-real',
                                'SPEECH_API_KEY': 'test-speech-key-not-real', 'SPEECH_PROVIDER': 'openai', 'TRANSCRIPTION_MODEL': 'gpt-transcribe', 'OPENAI_BASE_URL': 'https://api.openai.com/v1',
                                'TRANSCRIPTION_BASE_URL': 'https://api.openai.com/v1', 'STORY_API_STYLE': 'responses', 'STORY_MODEL': 'gpt-4o-mini'})
         self.client = self.app.test_client()

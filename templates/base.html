@@ -24,12 +24,12 @@
 </aside>
 {% endif %}
 <div class="workspace {% if not g.teacher %}signed-out{% endif %}">
-  {% if g.teacher %}<header class="topbar"><span>Learning together <span class="muted">/ Teacher workspace</span></span><span class="pill">P0 · Local MVP</span></header>{% endif %}
+  {% if g.teacher %}<header class="topbar"><span>Learning together <span class="muted">/ Teacher workspace</span></span><a class="pill" href="{{ url_for('student_home') }}">Open student view ↗</a></header>{% endif %}
   <main id="main">
     {% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="notice {{ category }}" role="status">{{ message }}</div>{% endfor %}{% endwith %}
     {% block content %}{% endblock %}
   </main>
-  {% if g.teacher %}<footer>Pseudonyms only. Teacher-confirmed observations. Recording is optional; audio is not retained by this app.</footer>{% endif %}
+  {% if g.teacher %}<footer>Pseudonyms only. Teacher-confirmed observations. Recording off by default; no server audio storage.</footer>{% endif %}
 </div>
 </body>
 </html>

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}{% from '_activity_parts.html' import source %}
+{% block title %}Reading & transcript{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('relay',ident=activity.id) }}">← Continue Story Relay</a>
+<div class="page-heading"><div><p class="eyebrow">OPTIONAL READING REVIEW</p><h1>Listen, then review</h1><p class="muted">Read the exact passage aloud for comparison. Retelling is not a word-for-word reading task.</p></div><span class="pill">Recording off by default</span></div>
+<div class="card"><div class="passage">{{ activity.source.text }}</div>{{ source(activity) }}</div>
+<section class="card stack" data-recorder data-url="{{ url_for('transcribe',ident=activity.id) }}">
+<h2>Record a reading</h2>{{ csrf() }}
+<label>Who is reading?<select data-reading-role><option value="mentor">Mentor · {{ activity.pair.mentor }}</option><option value="buddy">Buddy · {{ activity.pair.buddy }}</option></select></label>
+<label class="check"><input type="checkbox" data-record-authorize><span>I have the required authorization to record this learner for this activity.</span></label>
+<p class="hint">Audio stays in this browser’s memory until you delete it or leave this page. Recording stops after 60 seconds or 5 MB. No automatic upload.</p>
+<div class="actions"><button type="button" data-record-start>Start recording</button><button type="button" data-record-stop disabled>Stop recording</button><button type="button" class="secondary" data-record-delete disabled>Delete recording</button></div>
+<audio controls hidden data-record-playback aria-label="Recorded reading playback"></audio>
+<p role="status" aria-live="polite" data-record-status>Microphone is off.</p>
+{% if provider_ready %}
+<label class="check"><input type="checkbox" data-transcribe-consent><span>I authorize sending this recording to the configured transcription service and saving its text as an unconfirmed transcript draft. The service’s retention rules apply to audio sent there.</span></label>
+<button type="button" data-transcribe disabled>Send for transcription</button>
+{% else %}<p class="notice">Transcription is not configured. Playback and deletion still work; enter a manual transcript below. No recording is sent.</p>{% endif %}
+<p class="hint">Pairagraph keeps no audio on its server. Transcripts can be corrected or deleted before the session is confirmed.</p>
+</section>
+<section class="card"><h2>Enter a transcript manually</h2><form method="post" class="stack">{{ csrf() }}
+<label>Reader<select name="role"><option value="mentor">Mentor · {{ activity.pair.mentor }}</option><option value="buddy">Buddy · {{ activity.pair.buddy }}</option></select></label>
+<label>What was actually read?<textarea name="transcript" required maxlength="6000" rows="6" placeholder="Enter only the words you heard. This is a manual transcript, not AI transcription."></textarea></label>
+<label class="check"><input type="checkbox" name="confirm" value="yes" required><span>I have authorization to save this transcript as a draft for teacher review.</span></label>
+<button>Create transcript draft →</button></form></section>
+<section class="card"><h2>Transcript reviews</h2><div class="stack">{% for transcript in transcripts %}<a href="{{ url_for('review_transcript',ident=transcript.id) }}">{{ activity.pair[transcript.role] }} · {{ transcript.origin|capitalize }} transcript · {{ transcript.status|capitalize }} →</a>{% else %}<p class="muted">No transcript drafts yet. Transcription and recording are optional; you can complete the relay and assess manually.</p>{% endfor %}</div></section>
+{% endblock %}

@@ -36,7 +36,7 @@ class PairagraphTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = str(Path(self.temp.name) / 'test.sqlite3')
-        self.app = create_app({'TESTING': True, 'DATABASE': self.path, 'SECRET_KEY': 'test-secret', 'OPENAI_API_KEY': '', 'SPEECH_API_KEY': ''})
+        self.app = create_app({'TESTING': True, 'STUDENT_BUILTINS': False, 'DATABASE': self.path, 'SECRET_KEY': 'test-secret'})
         self.client = self.app.test_client()
 
     def tearDown(self):
@@ -115,7 +115,7 @@ class PairagraphTest(unittest.TestCase):
         self.assertEqual(results[1]['rating'], 'Practicing')
         self.assertEqual(results[0]['goal'], 'Use context clues')
         # Recreate the app and open the same on-disk workspace without signing in.
-        self.app = create_app({'TESTING': True, 'DATABASE': self.path, 'SECRET_KEY': 'test-secret'})
+        self.app = create_app({'TESTING': True, 'STUDENT_BUILTINS': False, 'DATABASE': self.path, 'SECRET_KEY': 'test-secret'})
         self.client = self.app.test_client()
         self.open_workspace()
         mentor = self.client.get(f'/progress?learner={ids["mentor"]}')

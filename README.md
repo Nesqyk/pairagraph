@@ -1,6 +1,24 @@
 # Pairagraph
 
-A local, teacher-led paired-reading app built with Flask and SQLite. Learners read approved passages aloud; an optional speech provider transcribes their readings, and the app compares each transcript with the source. Teacher-confirmed observations guide individual feedback and AI-generated practice stories. English is the first supported reading language; Filipino is planned next.
+## Current student demo
+
+The default homepage is now a self-guided student reading room at <http://localhost:5000>. There is no teacher setup, teacher review, or approval step in this flow.
+
+1. **Home:** select a reader and choose **Start Reading**. Three original built-in stories are available immediately.
+2. **Reading:** view the passage, opt into recording, start/stop, listen back, and submit. Browser recordings stop at three minutes; uploads are limited to 5 MB. A manual transcript option is clearly labeled.
+3. **Analysis:** compare the source and transcript side by side. Possible changed, skipped, or extra words are highlighted. Feedback is supportive practice guidance, not a pronunciation score or diagnosis.
+4. **Next Story:** possible differences can generate a targeted practice story; the validated story is ready to read directly. With no differences, another library passage is selected randomly. Generation failures fall back to a suitable library passage or rereading.
+5. **Progress:** saved reading sessions, explored passages, and recurring suggested practice words. An unheard ending is not counted as recurring difficult words.
+
+The student UI automatically loads `GEMINI_API_KEY` from the ignored `voice.env` for Gemini transcription. The separately ignored `instance/ai_config.json` configures the existing shared story gateway. Keys stay on the server. Audio is processed in memory and not retained by Pairagraph. Provider processing policies apply to submitted audio. Analysis happens after submission, not live during reading.
+
+Run the existing Python startup command below. The original workspace remains at `/workspace` for compatibility, but is not part of student navigation. Student reading data lives in `student_readings` via the additive `003_student_ui.sql` migration; prior records are preserved. Built-in story seeding is idempotent.
+
+Validation: 58 automated tests cover the combined student UI, Gemini/RAG, and pulled P1 workflows. Browser checks covered all five screens at desktop and 390 px phone widths, including the start dialog, recording consent gate, manual submission, highlighted differences, next-story navigation, persistent history, and lack of horizontal overflow or JavaScript errors. Browser QA used an isolated database and manual transcripts, not real learner recordings.
+
+The sections below document the earlier workspace implementation retained for compatibility.
+
+A local, teacher-led paired-reading MVP built with Flask and SQLite. One approved passage supports a mentor vocabulary task, a buddy comprehension task, and a shared teach-back. Teachers assess each learner separately.
 
 ## Run locally
 
@@ -12,35 +30,59 @@ python -m venv .venv
 .\.venv\Scripts\python.exe app.py
 ```
 
-Open <http://127.0.0.1:5000>. The local teacher workspace opens directly, without a login. The manual reading workflow needs no AI key; voice analysis and generated stories require one.
+Open <http://127.0.0.1:5000>. The current branch opens the local teacher workspace directly, without login. Template activities need no AI key.
 
-The first startup applies `migrations/001_initial.sql` and creates a fictional demo institute:
+Startup applies the SQL files in `migrations/` without deleting existing data, and creates a fictional demo institute on an empty database:
 
-- Teacher: Demo Teacher (selected by the server; no sign-in)
+- Teacher: Demo Teacher (server-selected local workspace)
 - Mentor: Maple; buddy: Robin
 - Material: **The Seed Library**, an original fictional passage that still requires teacher approval
 
-The database and persistent session secret are created in the ignored `instance/` directory. Learners, approvals, relay steps, transcripts, reviewed observations, stories, and confirmed results survive application restarts. This is a single-teacher local workspace, not a public multi-user service.
+The database and persistent session secret are created in the ignored `instance/` directory. Learners, approvals, relay steps, transcripts, review decisions, and confirmed results survive restarts. The built-in server and direct teacher access are for local evaluation. Keep it bound to localhost; this mode is not a multi-user deployment with authentication.
 
 ## Try the P0 workflow
 
-1. In **Learners**, add or edit pseudonyms and choose separate goals.
+1. Open the workspace. In **Learners**, add or edit pseudonyms and choose separate goals.
 2. In **Reading pairs**, create a mentor–buddy pair, then select **Build a shared activity**.
 3. In **Material library**, review the demo passage or upload a UTF-8 TXT/text-based PDF. Enter source attribution and approve the extracted text. Files are limited to 5 MB; PDFs to 100 pages. Scans need OCR before upload. Only extracted text is retained.
 4. In **Build activity**, select the pair and approved material. Optionally enter topic keywords. The app retrieves a passage and shows its document, page, and chunk attribution.
-5. Leave **Use claude-haiku-5-5** checked to generate RAG tasks, or uncheck it for goal-based templates. Review both tasks and their source evidence, then approve the activity. The source passage is not rewritten.
+5. Review both goal-specific tasks and approve the activity. Template tasks work without a provider; optional AI adaptation is described below. The source passage is not rewritten.
 6. Guide **Read → Retell → Teach-back**, then record mentor observations, buddy answers, individual ratings, and optional shared notes. Confirm to save both results together.
-7. In **Learner progress**, select each learner to see separate evidence and counts for each practiced goal. Refresh or restart the app to verify persistence. Changing a current goal preserves the original goals on existing activities and results.
+7. Saving opens a **Session summary** with both learners' goals, practiced skills, ratings, evidence, notes, and source. In **Learner progress**, select a learner for separate history and goal-level counts. Changing a current goal preserves the original goals on existing activities and results.
 
 Activity approval is separate from material approval. Draft activities cannot start a relay, and incomplete relays cannot be evaluated. Confirmed sessions cannot be submitted twice.
 
-## RAG with the shared model
+## P1 workflows
 
-`claude-haiku-5-5` is the generation model in the RAG pipeline. SQLite stores approved document chunks; local keyword ranking selects a primary passage plus up to two supporting chunks from the chosen approved material. This is lexical retrieval, not semantic/vector search, and the chat model does not generate embeddings.
+- **RAG-assisted task adaptation:** On **Build activity**, opt into AI and choose an age band. Only a retrieved approved passage, the two goals, and age band go to the model. JSON and vocabulary attribution are validated. Failures produce a clearly labeled template fallback. On the draft, use **Edit or reject draft tasks**, then approve it. Original AI suggestions remain available during review. Approved tasks are frozen.
+- **Optional recording:** In **Story Relay**, open **Reading & transcript review**. Explicitly authorize recording, then use Start, Stop, Playback, and Delete. Audio stays in browser memory and is deleted on leaving the page. The app requests no microphone access by default. Recording requires localhost or HTTPS and a browser with MediaRecorder.
+- **Transcript review:** Enter what was read manually, or send a recording only after a separate transcription provider has been configured and you explicitly authorize sending it. Provider output is saved as an unconfirmed draft with its origin. Compare it with the original passage, edit it, and accept or reject each possible difference. Accepting requires a teacher-written observation. Editing resets all decisions. These comparisons do not grade pronunciation or diagnose a reading difficulty.
+- **Confirmed evidence:** During evaluation, explicitly select any accepted teacher notes to include in that learner's result. Pending and rejected flags cannot enter results. Draft transcripts and their flags can be deleted before session confirmation; confirmed sessions preserve their evidence.
+- **Next-session practice:** In **Reading pairs**, choose **Suggest next practice**, or use **Plan the next session** on a summary. Suggestions show the latest confirmed result for each current goal and attributed approved passages ranked by overlap with the evidence. The recommendation is rule-based and requires teacher review.
 
-The prompt combines retrieved text with separate mentor/buddy goals and each learner’s latest teacher-confirmed reading observations, when available. It excludes learner aliases and audio. The model drafts a vocabulary task, a comprehension task, a teach-back prompt, vocabulary from the primary passage, and source quotations. The application rejects invented vocabulary, citations to unretrieved chunks, and quotations that do not match source text. It preserves the retrieved context and model name in the draft for attribution.
+Voice recognition is **pending the separate voice model/endpoint**. The submitted RAG model is used only for source-grounded task generation. It is not used for audio. Manual transcripts and all P0 functionality work while voice recognition is unavailable.
 
-Teachers must review the generated activity before use. Exact quotations do not guarantee that every model claim is correct. On provider errors or invalid output, the app creates a clearly labeled template fallback rather than presenting it as AI output. Existing template activities remain usable. Speech recognition remains a separate integration.
+## Provider configuration
+
+Text generation supports OpenAI-compatible Chat Completions and the OpenAI Responses API. The local RAG service has been verified with `claude-haiku-5-5` at `http://192.168.106.122:8080/api/chat/completions`. Its key is stored only in ignored `instance/provider.json`; never commit that file or paste a real key into the example below.
+
+Environment variables override local configuration:
+
+```powershell
+$env:PAIRAGRAPH_AI_BASE_URL = "http://192.168.106.122:8080/api"
+$env:PAIRAGRAPH_AI_MODE = "chat"
+$env:PAIRAGRAPH_AI_MODEL = "claude-haiku-5-5"
+$env:PAIRAGRAPH_AI_KEY = "YOUR_RAG_KEY"
+.\.venv\Scripts\python.exe app.py
+```
+
+For OpenAI Responses, use mode `responses`, base URL `https://api.openai.com/v1`, and a compatible text model. `OPENAI_API_KEY` is also accepted for text generation. Restart after configuration changes.
+
+When the voice model is available, configure `PAIRAGRAPH_STT_URL` (the complete transcription URL), `PAIRAGRAPH_STT_MODEL`, and `PAIRAGRAPH_STT_KEY`. The adapter sends multipart `file`, `model`, and `response_format=json` and expects a JSON `text` field. Until a transcription URL and voice key are explicitly configured, no voice request is enabled. Voice credentials are configured separately; RAG credentials are never automatically reused for audio. If the forthcoming voice service uses another protocol, its adapter must be adjusted before enabling it.
+
+Requests have a 30-second timeout. Errors show safe messages without provider payloads or credentials. The app sends audio only on explicit request and processes uploads in memory, up to 5 MB. An external transcription service may apply its own retention policy; check it before sending learner audio. Pairagraph retains only authorized transcript text and review decisions, not audio files.
+
+API references: [Open WebUI Chat Completions](https://docs.openwebui.com/reference/api-endpoints/), [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [OpenAI transcription](https://developers.openai.com/api/docs/guides/speech-to-text).
 
 ## Verify
 
@@ -48,64 +90,10 @@ Teachers must review the generated activity before use. Exact quotations do not 
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Tests use temporary databases and cover the complete acceptance journey, restart persistence, direct workspace access, CSRF, institute boundaries, upload errors, PDF page attribution, goal-specific tasks, ordered relay steps, and duplicate evaluation protection. Voice tests cover consent, learner attribution, transcript correction, review, provider errors, and the practice-story approval loop. Provider calls are mocked in automated tests; they do not establish real speech-recognition accuracy.
-
-## Enable English voice analysis and targeted stories
-
-### Gemini voice (current workstation)
-
-The app automatically reads `voice.env` at startup. `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) selects Google Gemini for voice; the current default is `gemini-3.8-flash`, verified as available to the supplied key. `voice.env` is ignored by Git and read only on the server. Its keys are not exported into the story provider configuration. Optional voice-only overrides in this file or the process environment are `PAIRAGRAPH_SPEECH_PROVIDER=gemini`, `PAIRAGRAPH_TRANSCRIPTION_MODEL`, and `PAIRAGRAPH_TRANSCRIPTION_BASE_URL`. Restart the server after changing the file.
-
-Gemini receives audio inline over HTTPS to its official API, using [Google's audio-understanding API](https://ai.google.dev/gemini-api/docs/generate-content/audio). No persistent Google Files upload is created by this integration. The prompt requests verbatim English transcription, preserving repetitions and false starts, without supplying the expected passage. The existing comparison and teacher-review flow then handles possible miscues. This does not constitute acoustic pronunciation scoring.
-
-A live test with a Windows-generated synthetic recording passed: “The garden has a red flower. I can see a little bird.” was transcribed exactly. This verifies connectivity and transcription for that sample, not recognition accuracy across children, accents, noise, or reading difficulties. Learner recordings still require explicit authorization. The app limits remain three-minute browser recordings, 5 MB uploads, and a 300-second provider timeout on this workstation.
-
-RAG and targeted stories continue to use the independently configured `claude-haiku-5-5` shared gateway.
-
-### Shared gateway configuration
-
-The current workstation uses the supplied shared gateway at `http://192.168.106.122:8080/api`, model `claude-haiku-5-5`, chat completions, and a 300-second timeout. Its key is kept in the ignored `instance/ai_config.json`; it is never sent to browser JavaScript or tracked in Git. Environment variables can override the local settings. In SDK code, `os.environ["OPENAI_API_KEY"]` reads a named variable; a literal key is not the variable name.
-
-A live fictional-text generation check passed. The gateway advertised `hackathon-assistant` and `claude-haiku-5-5`; POST to `/audio/transcriptions` returned HTTP 405. Therefore `transcription_enabled` remains false for that gateway, preventing its key from being reused for speech. The separately loaded Gemini key now provides speech transcription.
-
-To use a separate speech service implementing the transcription API, configure these server environment variables before restarting:
-
-```powershell
-$env:PAIRAGRAPH_TRANSCRIPTION_BASE_URL = 'https://api.openai.com/v1'
-$env:PAIRAGRAPH_TRANSCRIPTION_MODEL = 'gpt-transcribe'
-$env:PAIRAGRAPH_SPEECH_API_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'Speech provider API key' -AsSecureString)).Password
-.\.venv\Scripts\python.exe app.py
-```
-
-Use a key issued by that speech provider; the shared gateway key is not automatically valid at another provider. The gateway continues to handle stories independently. Optional overrides: `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `PAIRAGRAPH_STORY_MODEL`, `PAIRAGRAPH_STORY_API_STYLE` (`chat_completions` or `responses`), and `PAIRAGRAPH_AI_TIMEOUT`.
-
-### Direct OpenAI setup
-
-Configure an OpenAI API key in the server environment, then restart the app. Do not put the key in source code or browser JavaScript, or send it in chat. In PowerShell, this prompts without echoing the key:
-
-```powershell
-$env:OPENAI_API_KEY = [System.Net.NetworkCredential]::new('', (Read-Host 'OpenAI API key' -AsSecureString)).Password
-.\.venv\Scripts\python.exe app.py
-```
-
-Without workstation overrides, the speech model defaults to `gpt-transcribe` and the story model to `gpt-4o-mini`. Set `OPENAI_BASE_URL=https://api.openai.com/v1`, `PAIRAGRAPH_STORY_API_STYLE=responses`, `PAIRAGRAPH_STORY_MODEL=gpt-4o-mini`, and `PAIRAGRAPH_TRANSCRIPTION_ENABLED=true` when switching this workstation entirely to direct OpenAI. The endpoints follow the official [file-transcription](https://developers.openai.com/api/docs/guides/speech-to-text) and [structured-output](https://developers.openai.com/api/docs/guides/structured-outputs) documentation. Direct Responses requests use `store: false`; compatible chat gateways have their own retention policies. Both paths validate story length, required fields, and target-word repetition locally.
-
-1. Approve an activity and open **Read aloud & analyze** during the relay’s Read step.
-2. Select the learner and explicitly confirm authorization. Record just that learner reading the passage, stop, and listen back. You can also upload authorized audio. Recording is limited to three minutes in the browser and 5 MB on the server.
-3. Send the audio for transcription. The app compares the recognized words with the reference, suggesting omissions, additions/repetitions, or substitutions. A missing ending is labeled incomplete, rather than automatically treated as an error.
-4. Correct recognition mistakes in the transcript, update the comparison, and confirm only observations you actually heard. No suggestions are automatically accepted. The original transcript remains available.
-5. Complete the relay and save the separate teacher evaluations. Open each learner’s reading feedback for short coaching steps selected from their confirmed observations.
-6. Request a targeted story. Only the approved passage and confirmed observations are sent for generation, not the learner’s identity. The generated English story must have 70–160 words and repeat selected target words; invalid output is rejected.
-7. Review or edit the draft, then approve it into the material library. Its original source/page/chunk and adaptation label remain attached. Build the next activity using that approved practice material. Each learner’s progress page links to their own reading attempts.
-
-Recording works on localhost or HTTPS in supported browsers. The microphone starts only after authorization and a user click. Stop, discard, navigation, and the automatic limit release the microphone. The app holds uploads in memory and never saves original audio to disk or the database. Transcripts and teacher-confirmed observations are retained locally; external provider policies govern audio sent to that service.
-
-Without a speech key, the app displays an explicit disconnected state and preserves manual evaluation. It never substitutes fake transcripts or generated stories. Gemini speech passed the synthetic-audio test described above; real learner recognition quality remains to be evaluated. Gateway story generation has been verified separately with fictional text.
+The 33 tests use temporary databases and mocked provider calls. They cover the complete reading journey, restart persistence, CSRF, institute boundaries, upload errors, attributed generation and fallback, task edits/rejection, stale reviews, consent and audio validation, transcript decisions, evidence selection, recommendations, summaries, and both API protocols. Live RAG generation was also verified against the configured server; recording was verified in Chromium with synthetic audio. Live speech-to-text remains pending.
 
 ## Scope and privacy
 
-The P0 manual workflow and the English voice-to-practice integration are implemented; see [the workload and verification status](PAIRAGRAPH_MVP_WORKLOAD.md). Gemini speech connectivity has been verified with synthetic audio; broad learner accuracy has not been established.
+See [the workload and verification status](PAIRAGRAPH_MVP_WORKLOAD.md) for feature-by-feature scope. P1 I01, I02, and I04–I07 are implemented; I03 has the consent, adapter, editable-draft, and failure paths implemented but awaits the separate voice provider for live acceptance. P2 remains future work. There is no automated voice grading. Teacher assessments are observations, not proof of measured improvement.
 
-Transcript alignment is not acoustic pronunciation assessment: recognition can hide or introduce mistakes. This version does not score pronunciation, phonemes, prosody, reading pace, or comprehension from voice. Feedback is rule-based coaching tied to teacher-confirmed differences; the model creates the next story. Dedicated pronunciation/fluency assessment and Filipino validation remain future work.
-
-Application records remain scoped to the server-selected teacher’s institute. Login was removed at the user’s request; anyone with access to this local app uses that workspace. The database is local storage, not encrypted storage. Teacher assessments are observations, not proof of measured improvement.
+All database operations use the institute of the server-selected teacher (`LOCAL_TEACHER_ID`, default 1). Browser cookies cannot choose another teacher. The current local mode has no login/logout; institute/account administration is not included. The SQLite database and local provider configuration are not encrypted at rest.

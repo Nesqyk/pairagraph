@@ -54,7 +54,7 @@ Verification: `python -m unittest discover -s tests -v` runs 12 tests covering t
 
 Browser verification: completed sign-in → material approval → activity draft/review → Read → Retell → Teach-back → evaluation → separate progress, including a page refresh. Checked the activity at 390 px phone width and progress at 1440 px desktop width. The local demo session is explicitly labeled as fictional QA data.
 
-P1 and P2 are not implemented. OCR, AI adaptation, transcription, and automated voice grading remain outside P0. Teacher assessment and deterministic templates are the implemented behavior.
+No P1 feature is fully implemented; I07 has partial coverage through the existing learner session history (see the audit below). P2 is not implemented. OCR, AI adaptation, transcription, and automated voice grading remain outside P0. Teacher assessment and deterministic templates are the implemented behavior.
 
 ## 2. MVP Important Features — P1 (Only After P0)
 
@@ -67,6 +67,20 @@ P1 and P2 are not implemented. OCR, AI adaptation, transcription, and automated 
 | I05 | Next-session recommendation | Suggest practice based on saved teacher-confirmed observations and approved material | AI / Backend |
 | I06 | AI review workspace | Teacher edits/approves generated adaptations and suggested reading observations before recording as evidence | Full-stack |
 | I07 | Session summary | Compact summary of each learner's goals, practiced skills, and observations | Frontend |
+
+### P1 implementation audit — 2026-10-22
+
+Source inspection of the application routes, task generation, templates, browser script, database schema, dependencies, and tests found **0 of 7 P1 features fully implemented**. The statuses below describe existing code; they do not represent a new runtime acceptance test.
+
+| ID | Status | Evidence / remaining work |
+|---|---|---|
+| I01 | Not implemented | `app.py:make_tasks` produces fixed goal-specific templates; `templates/new_activity.html` explicitly states that no AI provider is used. No provider integration, age-based adaptation, or provider-output JSON validation exists. |
+| I02 | Not implemented | The application sends `Permissions-Policy: microphone=(), camera=()`, and the relay is labeled "No recording". No recording, playback, authorization, or audio deletion workflow exists. |
+| I03 | Not implemented | No transcription provider, recording submission endpoint, editable transcript, or passage comparison view exists. |
+| I04 | Not implemented | No skip/substitution detection, suggested flags, or teacher accept/reject workflow exists. Current evidence is entered manually by the teacher. |
+| I05 | Not implemented | Progress displays saved results and goal-level counts, but no next-session recommendation based on those observations and approved material is produced. |
+| I06 | Not implemented | P0 activity review permits approval of deterministic tasks. It does not support editing AI adaptations or reviewing suggested reading observations before saving evidence. |
+| I07 | Partial — not complete | `templates/progress.html` displays each learner's historical goal, rating, observations, and shared notes per session, plus aggregate goal counts. A compact session summary that explicitly brings together practiced skills and both learners' results is not implemented. |
 
 ### P1 acceptance demonstration
 - AI output is attributed to an approved source and can be edited or rejected.

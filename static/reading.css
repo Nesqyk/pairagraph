@@ -12,7 +12,9 @@
 .reader-app h1{font-size:clamp(36px,5vw,56px);font-weight:600;margin:16px 0}
 .reader-app h2{font-size:24px;font-weight:600;margin:0 0 16px}
 .reader-header{max-width:1200px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:24px 32px;border-bottom:1px solid var(--line)}
-.reader-brand{font-size:26px;font-weight:750;letter-spacing:-1px;min-height:44px;display:flex;align-items:center}
+.reader-brand{font-size:26px;font-weight:750;letter-spacing:-1px;min-height:44px;display:flex;align-items:center;column-gap:8px}
+.reader-brand>span{margin-left:-8px}
+.reader-brand:hover{text-decoration:none}
 .reader-brand span{color:var(--reader-accent)}
 .reader-main{max-width:1120px;margin:auto;padding:32px 32px 48px;min-height:70vh}
 .reader-chip{display:inline-flex;align-items:center;gap:8px;background:var(--reader-soft);color:#34594d;padding:6px 12px;border-radius:999px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}

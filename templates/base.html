@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Pairagraph{% endblock %} · Shared stories, individual growth</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='logopai.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='p2.css') }}">
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
@@ -13,7 +14,7 @@
 {% macro csrf() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
 {% if g.teacher %}
 <aside class="sidebar">
-  <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">p<span>p</span></span> pairagraph<span class="brand-dot">.</span></a>
+  <a class="brand" href="{{ url_for('dashboard') }}"><img class="brand-logo" src="{{ url_for('static', filename='logopai.png') }}" width="40" height="40" alt=""> pairagraph<span class="brand-dot">.</span></a>
   <p class="nav-caption">TEACHER WORKSPACE</p>
   <nav aria-label="Main navigation">
     {% for endpoint,label,icon in [('dashboard','Overview','◫'),('learners','Learners','♧'),('pairs','Reading pairs','↔'),('library','Material library','▤'),('new_activity','Build activity','＋'),('progress','Learner progress','↗'),('practice','Shared milestones','☆'),('offline','Offline reading','↓')] %}

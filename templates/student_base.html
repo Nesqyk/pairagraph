@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Reading{% endblock %} · Pairagraph</title>
+<link rel="icon" type="image/png" href="{{ url_for('static',filename='logopai.png') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='reading.css') }}">
 <script src="{{ url_for('static',filename='app.js') }}" defer></script>
@@ -10,7 +11,7 @@
 </head><body class="reader-app">
 {% macro csrf() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
 <a class="skip" href="#main">Skip to content</a>
-<header class="reader-header"><a class="reader-brand" href="{{ url_for('reading',ident=activity.id) if activity is defined and activity.status == 'approved' else url_for('dashboard') }}">pairagraph<span>.</span></a><span class="reader-chip">Reading together</span></header>
+<header class="reader-header"><a class="reader-brand" href="{{ url_for('reading',ident=activity.id) if activity is defined and activity.status == 'approved' else url_for('dashboard') }}"><img class="brand-logo" src="{{ url_for('static',filename='logopai.png') }}" width="40" height="40" alt="">pairagraph<span>.</span></a><span class="reader-chip">Reading together</span></header>
 <main id="main" class="reader-main">{% block content %}{% endblock %}</main>
 <footer class="reader-footer">{% block teacher_tools %}<a href="{{ url_for('dashboard') }}">Teacher workspace</a>{% endblock %}</footer>
 </body></html>
